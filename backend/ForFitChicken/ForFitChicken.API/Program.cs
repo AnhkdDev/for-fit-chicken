@@ -1,3 +1,4 @@
+using ForFitChicken.API.RateLimiting;
 using ForFitChicken.Infrastructure;
 
 namespace ForFitChicken.API;
@@ -13,6 +14,8 @@ public class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
         builder.Services.AddHealthChecks();
+        builder.Services.AddAuthentication();
+        builder.Services.AddApiRateLimiting(builder.Configuration);
         builder.Services.AddInfrastructure(builder.Configuration);
 
         var app = builder.Build();
@@ -27,10 +30,14 @@ public class Program
         }
 
         app.UseHttpsRedirection();
+        app.UseRouting();
+        app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
 
         // Liveness only: database readiness is added with persistence features.
-        app.MapHealthChecks("/health");
+        // Explicit operational exemption: liveness must not consume business quotas.
+        app.MapHealthChecks("/health").DisableRateLimiting();
         app.MapControllers();
 
         app.Run();
