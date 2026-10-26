@@ -1,0 +1,29 @@
+# ASP.NET build output
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+
+# React / Node
+**/node_modules/
+**/dist/
+**/coverage/
+**/.vite/
+
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+
+# Logs and database backups
+*.log
+*.bak
+*.mdf
+*.ldf
+
+# Reference source — keep locally
+/CodeReverseASinTayBac/

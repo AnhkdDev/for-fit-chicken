@@ -1,0 +1,396 @@
+// SQL Server logical draft v0.1, 26/10/2026. Not an executed migration.
+// See database-design.md for CHECK, filtered indexes, transaction and temporal rules.
+Project UcGaNauChamMvp {
+  database_type: 'SQL Server'
+  Note: '22 core application tables including NotificationJobs + optional OperatingExpenses. Identity tables below are partial diagram stubs; use framework-generated migrations.'
+}
+
+Table AspNetUsers {
+  Id bigint [pk]
+  UserName nvarchar(256)
+  DisplayName nvarchar(150)
+  IsActive bit [not null, default: true]
+  Note: 'Partial ASP.NET Core Identity<long> model, not a custom account schema. Framework manages password/security fields.'
+}
+Table AspNetRoles {
+  Id bigint [pk]
+  Name nvarchar(256)
+}
+Table AspNetUserRoles {
+  UserId bigint [not null, ref: > AspNetUsers.Id]
+  RoleId bigint [not null, ref: > AspNetRoles.Id]
+  indexes { (UserId, RoleId) [pk] }
+  Note: 'Other Identity claim/login/token tables omitted from this diagram, not removed from framework configuration.'
+}
+
+Table MediaAssets {
+  Id bigint [pk, increment]
+  StorageKey nvarchar(450) [not null, unique]
+  ContentType varchar(100) [not null]
+  ByteSize bigint [not null]
+  Width int
+  Height int
+  DefaultAlt nvarchar(300)
+  CreatedAtUtc datetime2(3) [not null]
+  CreatedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  Note: 'File bytes stored outside database. Validate dimensions/size and allowed media types in upload service.'
+}
+Table Products {
+  Id bigint [pk, increment]
+  Name nvarchar(200) [not null]
+  Slug varchar(200) [not null, unique]
+  ShortDescription nvarchar(600)
+  Description nvarchar(max)
+  Ingredients nvarchar(max)
+  NutritionText nvarchar(max)
+  UsageInstructions nvarchar(max)
+  StorageInstructions nvarchar(max)
+  IsPublished bit [not null, default: false]
+  IsActive bit [not null, default: true]
+  IsFeatured bit [not null, default: false]
+  SortOrder int [not null, default: 0]
+  FirstPublishedAtUtc datetime2(3)
+  CreatedAtUtc datetime2(3) [not null]
+  UpdatedAtUtc datetime2(3) [not null]
+  Version rowversion [not null]
+}
+Table ProductVariants {
+  Id bigint [pk, increment]
+  ProductId bigint [not null, ref: > Products.Id]
+  SkuCode varchar(50) [not null, unique]
+  Label nvarchar(150) [not null]
+  NetWeightGrams int
+  SellingPrice decimal(18,0) [not null]
+  IsActive bit [not null, default: true]
+  SortOrder int [not null, default: 0]
+  CreatedAtUtc datetime2(3) [not null]
+  UpdatedAtUtc datetime2(3) [not null]
+  Version rowversion [not null]
+  indexes {
+    (ProductId, Id) [unique]
+    (ProductId, Label) [unique]
+  }
+  Note: 'Proposed CHECK price>0, weight>0 when provided; active requires weight; SortOrder>=0. Normalize uppercase SKU code, immutable code/ProductId; freeze physical pack definition after first batch or order reference. Label uniqueness uses explicit collation. Product determines flavor/story; variant determines sellable pack. See database/02-product-variants.md.'
+}
+Table ProductImages {
+  Id bigint [pk, increment]
+  ProductId bigint [not null, ref: > Products.Id]
+  VariantId bigint
+  AssetId bigint [not null, ref: > MediaAssets.Id]
+  AltText nvarchar(300)
+  SortOrder int [not null, default: 0]
+  Note: 'Optional composite FK enforces variant belongs to this product. First applicable image by SortOrder,Id is cover; no conflicting IsPrimary flags.'
+}
+Ref: ProductImages.(ProductId, VariantId) > ProductVariants.(ProductId, Id)
+
+Table ProductBatches {
+  Id bigint [pk, increment]
+  VariantId bigint [not null, ref: > ProductVariants.Id]
+  BatchCode varchar(60) [not null, unique]
+  ManufacturedOn date [not null]
+  ExpiresAtUtc datetime2(3) [not null]
+  UnitCost decimal(18,4)
+  IsSaleBlocked bit [not null, default: false]
+  BlockReason nvarchar(500)
+  BlockedAtUtc datetime2(3)
+  BlockedByUserId bigint [ref: > AspNetUsers.Id]
+  Notes nvarchar(1000)
+  CreatedAtUtc datetime2(3) [not null]
+  CreatedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  UpdatedAtUtc datetime2(3) [not null]
+  Version rowversion [not null]
+  indexes { (VariantId, ExpiresAtUtc, Id) }
+  Note: 'Unknown cost is NULL; known cost>=0. Validate expiry/cutoff in local business timezone. Freeze SKU/code; freeze production/expiry after Posted movement or allocation. Current cost edits affect future issue snapshots only. Block requires reason/actor/time; expired is derived, not a stored flag. See database/03-product-batches.md.'
+}
+
+Table Gyms {
+  Id bigint [pk, increment]
+  GymCode varchar(40) [not null, unique]
+  Name nvarchar(200) [not null]
+  PublicAddress nvarchar(600) [not null]
+  PublicPhone varchar(30)
+  PublicDescription nvarchar(1000)
+  InternalContactName nvarchar(150)
+  InternalPhone varchar(30)
+  InternalNotes nvarchar(1000)
+  CoverAssetId bigint [ref: > MediaAssets.Id]
+  IsPublished bit [not null, default: false]
+  IsActive bit [not null, default: true]
+  CreatedAtUtc datetime2(3) [not null]
+  UpdatedAtUtc datetime2(3) [not null]
+  Version rowversion [not null]
+}
+Table StockLocations {
+  Id bigint [pk, increment]
+  LocationCode varchar(40) [not null, unique]
+  Name nvarchar(200) [not null]
+  Kind varchar(20) [not null, note: 'Warehouse | Gym']
+  GymId bigint [ref: > Gyms.Id]
+  IsActive bit [not null, default: true]
+  Version rowversion [not null]
+  Note: 'Filtered unique GymId where not null; CHECK Kind/GymId. Lock this row to serialize gym posting/count boundary. User approved one online warehouse for MVP on 2026-10-26.'
+}
+Table WarehouseBalances {
+  Id bigint [pk, increment]
+  LocationId bigint [not null, ref: > StockLocations.Id]
+  BatchId bigint [not null, ref: > ProductBatches.Id]
+  Condition varchar(20) [not null, note: 'Good | Quarantine | Damaged']
+  OnHand int [not null, default: 0]
+  Reserved int [not null, default: 0]
+  UpdatedAtUtc datetime2(3) [not null]
+  Version rowversion [not null]
+  indexes { (LocationId, BatchId, Condition) [unique] }
+  Note: 'Warehouse only, never gym. CHECK 0<=Reserved<=OnHand; non-Good Reserved=0. Sale eligibility additionally checks batch and product/variant state.'
+}
+
+Table Orders {
+  Id bigint [pk, increment]
+  OrderNumber varchar(40) [not null, unique]
+  Source varchar(20) [not null, note: 'Website | Facebook | Zalo | Phone | Other']
+  Status varchar(30) [not null, note: 'PendingConfirmation | Confirmed | Preparing | HandedOver | Completed | Cancelled']
+  PaymentMethod varchar(10) [not null, default: 'COD']
+  RecipientName nvarchar(150) [not null]
+  RecipientPhone varchar(30) [not null]
+  RecipientAddress nvarchar(600) [not null]
+  CustomerNote nvarchar(1000)
+  InternalNote nvarchar(1000)
+  ItemsSubtotal decimal(18,0) [not null]
+  CreatedAtUtc datetime2(3) [not null]
+  UpdatedAtUtc datetime2(3) [not null]
+  CreatedByUserId bigint [ref: > AspNetUsers.Id]
+  ConfirmedAtUtc datetime2(3)
+  ConfirmedByUserId bigint [ref: > AspNetUsers.Id]
+  HandedOverAtUtc datetime2(3)
+  CompletedAtUtc datetime2(3)
+  CancelledAtUtc datetime2(3)
+  CancellationReason nvarchar(500)
+  ReplacesOrderId bigint [ref: > Orders.Id]
+  Version rowversion [not null]
+  indexes { (Status, CreatedAtUtc) }
+  Note: 'No customer account and no shipping fee. Subtotal excludes external shipping, matches items in transaction. Public order code is not authentication.'
+}
+Table OrderItems {
+  Id bigint [pk, increment]
+  OrderId bigint [not null, ref: > Orders.Id]
+  VariantId bigint [not null, ref: > ProductVariants.Id]
+  SkuCodeSnapshot varchar(50) [not null]
+  ProductNameSnapshot nvarchar(200) [not null]
+  VariantLabelSnapshot nvarchar(150) [not null]
+  Quantity int [not null]
+  UnitPrice decimal(18,0) [not null]
+  Note: 'CHECK Quantity>0, UnitPrice>=0. LineTotal computed from decimal UnitPrice*Quantity when migration is created. Frozen after confirmation.'
+}
+Table OrderAllocations {
+  Id bigint [pk, increment]
+  OrderItemId bigint [not null, ref: > OrderItems.Id]
+  BalanceId bigint [not null, ref: > WarehouseBalances.Id]
+  Quantity int [not null]
+  State varchar(20) [not null, note: 'Reserved | Issued | Released']
+  UnitCostSnapshot decimal(18,4)
+  ReservedAtUtc datetime2(3) [not null]
+  IssuedAtUtc datetime2(3)
+  ReleasedAtUtc datetime2(3)
+  ReleaseReason nvarchar(500)
+  indexes {
+    (OrderItemId, State)
+    (BalanceId, State)
+  }
+  Note: 'Filtered unique item/balance for active Reserved. Must match item SKU and Good main warehouse. Reserve only at confirm, issue at handover, release before issue. Totals/state checks enforced by order transaction, no direct allocation CRUD. Cost snapshot captured at issue; unknown stays NULL. See database/07-order-allocations.md.'
+}
+Table OrderEvents {
+  Id bigint [pk, increment]
+  OrderId bigint [not null, ref: > Orders.Id]
+  EventType varchar(50) [not null]
+  FromStatus varchar(30)
+  ToStatus varchar(30)
+  Note nvarchar(1000)
+  ChangedFieldsJson nvarchar(max)
+  CreatedAtUtc datetime2(3) [not null]
+  ActorUserId bigint [ref: > AspNetUsers.Id]
+  indexes { (OrderId, Id) }
+  Note: 'Append-only; public creation actor may be null. Filter sensitive data in JSON. No need to duplicate complete order PII on every status event.'
+}
+Table CodReceipts {
+  Id bigint [pk, increment]
+  OrderId bigint [not null, ref: > Orders.Id]
+  Amount decimal(18,0) [not null]
+  ReceivedAtUtc datetime2(3) [not null]
+  RecordedAtUtc datetime2(3) [not null]
+  RecordedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  Reference nvarchar(200)
+  Note nvarchar(500)
+  VoidedAtUtc datetime2(3)
+  VoidedByUserId bigint [ref: > AspNetUsers.Id]
+  VoidReason nvarchar(500)
+  Note: 'User approved full-items-value receipt, no partial payments. Filtered unique OrderId where VoidedAtUtc IS NULL; received money independent of order completion. Detailed void workflow remains proposed; void is correction, not customer refund.'
+}
+
+Table StockDocuments {
+  Id bigint [pk, increment]
+  DocumentNo varchar(50) [not null, unique]
+  OperationKey uniqueidentifier [not null, unique]
+  DocumentType varchar(30) [not null, note: 'ProductionReceipt | GymDelivery | GymRecall | Reclassify | WriteOff | Adjustment | OrderIssue']
+  Status varchar(20) [not null, note: 'Draft | Posted | Cancelled']
+  OrderId bigint [ref: > Orders.Id]
+  CorrectsDocumentId bigint [ref: > StockDocuments.Id]
+  EffectiveAtUtc datetime2(3) [not null]
+  CreatedAtUtc datetime2(3) [not null]
+  CreatedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  PostedAtUtc datetime2(3)
+  PostedByUserId bigint [ref: > AspNetUsers.Id]
+  Reason nvarchar(1000)
+  Version rowversion [not null]
+  indexes { (Status, EffectiveAtUtc) }
+  Note: 'Posted immutable, corrections are new linked documents. Filtered unique posted OrderIssue per OrderId; only OrderIssue may have OrderId and requires it. Type/endpoints validated in transaction.'
+}
+Table StockDocumentLines {
+  Id bigint [pk, increment]
+  DocumentId bigint [not null, ref: > StockDocuments.Id]
+  BatchId bigint [not null, ref: > ProductBatches.Id]
+  Quantity int [not null]
+  FromLocationId bigint [ref: > StockLocations.Id]
+  FromCondition varchar(20)
+  ToLocationId bigint [ref: > StockLocations.Id]
+  ToCondition varchar(20)
+  Note nvarchar(500)
+  indexes {
+    (DocumentId, Id)
+    (FromLocationId, BatchId)
+    (ToLocationId, BatchId)
+  }
+  Note: 'CHECK qty>0; at least one endpoint; condition iff location set; no identical endpoints/bucket. Movement of Posted docs is ledger. Recall can move Damaged gym into Quarantine warehouse, not writeoff again.'
+}
+
+Table GymStockCounts {
+  Id bigint [pk, increment]
+  CountNumber varchar(50) [not null, unique]
+  GymId bigint [not null, ref: > Gyms.Id]
+  PreviousCountId bigint [ref: > GymStockCounts.Id]
+  Kind varchar(20) [not null, note: 'Regular | OpeningBaseline']
+  Status varchar(20) [not null, note: 'Draft | Posted | Cancelled']
+  CountedAtUtc datetime2(3) [not null]
+  CountedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  SourceFingerprint varchar(64)
+  CreatedAtUtc datetime2(3) [not null]
+  CreatedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  PostedAtUtc datetime2(3)
+  PostedByUserId bigint [ref: > AspNetUsers.Id]
+  Note nvarchar(1000)
+  Version rowversion [not null]
+  indexes { (GymId, CountedAtUtc) }
+  Note: 'Posted chain must stay in same Gym and advance time. Filtered unique posted predecessor, posted root per gym, posted Gym/time. Serialize with movements on gym location; fingerprint is not locking by itself. OpeningBaseline needs Owner, does not infer sales.'
+}
+Table GymStockCountLines {
+  Id bigint [pk, increment]
+  CountId bigint [not null, ref: > GymStockCounts.Id]
+  BatchId bigint [not null, ref: > ProductBatches.Id]
+  ExpectedGood int
+  ExpectedQuarantine int
+  ExpectedDamaged int
+  ActualGood int
+  ActualQuarantine int
+  ActualDamaged int
+  Note nvarchar(500)
+  Version rowversion [not null]
+  indexes { (CountId, BatchId) [unique] }
+  Note: 'Actual>=0 if provided; null draft means not entered. On Regular post expected/actual required; expected condition may be negative if recorded movements conflict with uncertain sales. Baseline expected stays NULL, not surplus. Freeze after post; no manual edit to reconcile missing.'
+}
+Table GymVarianceResolutions {
+  Id bigint [pk, increment]
+  CountLineId bigint [not null, ref: > GymStockCountLines.Id]
+  Direction varchar(10) [not null, note: 'Missing | Surplus']
+  Category varchar(20) [not null, note: 'Sale | Loss | Other']
+  Quantity int [not null]
+  Reason nvarchar(1000) [not null]
+  EvidenceReference nvarchar(1000)
+  VerifiedAtUtc datetime2(3) [not null]
+  CreatedAtUtc datetime2(3) [not null]
+  CreatedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  VoidedAtUtc datetime2(3)
+  VoidedByUserId bigint [ref: > AspNetUsers.Id]
+  VoidReason nvarchar(500)
+  indexes { (CountLineId, VoidedAtUtc) }
+  Note: 'Qty>0. Sale only for Missing, only posted Regular counts. Effective resolution sum <= directional variance under count-line lock. No stock or cash movement. Void requires reason and does not resurrect stock.'
+}
+
+Table SiteContent {
+  Id bigint [pk, increment]
+  SectionKey varchar(50) [not null, unique]
+  SchemaVersion int [not null]
+  DraftJson nvarchar(max) [not null]
+  PublishedJson nvarchar(max)
+  PublishedAtUtc datetime2(3)
+  PublishedByUserId bigint [ref: > AspNetUsers.Id]
+  UpdatedAtUtc datetime2(3) [not null]
+  UpdatedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  Version rowversion [not null]
+  Note: 'Fixed section DTO schemas; ISJSON check and application validation. Public returns only published. Asset references inside JSON need publish validation and deletion protection.'
+}
+Table AuditLogs {
+  Id bigint [pk, increment]
+  ActorUserId bigint [ref: > AspNetUsers.Id]
+  Action varchar(80) [not null]
+  EntityType varchar(80) [not null]
+  EntityId varchar(80) [not null]
+  CorrelationId varchar(100)
+  ChangesJson nvarchar(max)
+  CreatedAtUtc datetime2(3) [not null]
+  indexes {
+    (EntityType, EntityId, Id)
+    CreatedAtUtc
+  }
+  Note: 'Generic target intentionally audit-only. Append-only and access-controlled, filter secrets and unnecessary PII.'
+}
+Table IdempotencyRequests {
+  Id bigint [pk, increment]
+  ScopeHash varchar(64) [not null]
+  Operation varchar(80) [not null]
+  RequestKey varchar(100) [not null]
+  RequestHash varchar(64) [not null]
+  OrderId bigint [ref: > Orders.Id]
+  ResponseStatus int [not null]
+  SafeResponseJson nvarchar(max)
+  CreatedAtUtc datetime2(3) [not null]
+  ExpiresAtUtc datetime2(3) [not null]
+  indexes {
+    (ScopeHash, Operation, RequestKey) [unique]
+    ExpiresAtUtc
+  }
+  Note: 'Create COD + request result in one transaction, replay only same scope and payload; no committed orphan Processing record in this draft. Unique collision rolls back and re-reads completed outcome. Safe response excludes recipient PII. Retention/retry contract must be defined before purging.'
+}
+Table OperatingExpenses {
+  Id bigint [pk, increment]
+  ExpenseDate date [not null]
+  Category varchar(40) [not null]
+  Amount decimal(18,0) [not null]
+  Note nvarchar(1000)
+  CreatedAtUtc datetime2(3) [not null]
+  CreatedByUserId bigint [not null, ref: > AspNetUsers.Id]
+  VoidedAtUtc datetime2(3)
+  VoidedByUserId bigint [ref: > AspNetUsers.Id]
+  VoidReason nvarchar(500)
+  Note: 'OPTIONAL, not core migration until confirmed. Amount>0. Not gym commission or complete accounting; avoid counting batch costs again as period expenses.'
+}
+
+Table NotificationJobs {
+  Id bigint [pk, increment]
+  OrderId bigint [not null, ref: > Orders.Id]
+  EventType varchar(40) [not null, note: 'OrderRequested']
+  Channel varchar(20) [not null, note: 'Telegram']
+  TargetChatId bigint [not null]
+  PayloadJson nvarchar(max) [not null]
+  Status varchar(20) [not null, note: 'Pending | Processing | Sent | Failed']
+  AttemptCount int [not null, default: 0]
+  NextAttemptAtUtc datetime2(3) [not null]
+  LeaseToken uniqueidentifier
+  LeaseUntilUtc datetime2(3)
+  LastError nvarchar(1000)
+  TelegramMessageId bigint
+  CreatedAtUtc datetime2(3) [not null]
+  SentAtUtc datetime2(3)
+  indexes {
+    (OrderId, EventType, Channel, TargetChatId) [unique]
+    (Status, NextAttemptAtUtc)
+  }
+  Note: 'User chose Telegram; durable SQL job is proposed implementation. Insert with order transaction; atomic lease claim, send outside transaction, bounded retry. No BotToken/recipient PII in payload/log. Sent means Telegram accepted, not human read; ambiguous timeout may duplicate external message. See database/order-notifications.md.'
+}
