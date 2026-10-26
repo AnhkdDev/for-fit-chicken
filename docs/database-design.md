@@ -1,6 +1,6 @@
 # Thiết kế database MVP — bản ERD v0.1
 
-Ngày 26/10/2026. Trạng thái: bản thiết kế để thảo luận, chưa tạo database, chưa phải migration đã chạy. Căn cứ: [nghiệp vụ](mvp-requirements.md), [màn hình/luồng](mvp-screens-and-flows.md). Sơ đồ đầy đủ: [Mermaid](erd.mmd). Từ điển trường và quan hệ máy đọc: [DBML](database-schema.dbml).
+Thiết kế ngày 26/10/2026, cập nhật triển khai 27/10/2026. Entity, EF configurations và migration InitialSchema đã triển khai; database development hiện dùng SQL Server `KDADEPTRAI\KDADEPTRAI` theo yêu cầu thay LocalDB. Các use case nghiệp vụ còn cần triển khai. Xem [phạm vi đã kiểm chứng](database/implementation.md). Căn cứ: [nghiệp vụ](mvp-requirements.md), [màn hình/luồng](mvp-screens-and-flows.md). Sơ đồ: [Mermaid](erd.mmd). Từ điển trường: [DBML](database-schema.dbml).
 
 ## 1. Những quyết định cơ sở
 
@@ -199,13 +199,13 @@ Rowversion cho sửa form/order aggregate giúp phát hiện stale write, nhưng
 - Đổi giá, tên, cost không sửa snapshot lịch sử. Không biết cost khác với 0.
 - Asset publish, quyền cost/PII, idempotency replay không lộ dữ liệu, FK NO ACTION được kiểm chứng.
 
-Chưa thực hiện các kiểm thử này trong bước thiết kế; DBML/Mermaid không phải SQL đã được SQL Server xác nhận.
+Đã kiểm thử migration và một phần ràng buộc schema trên SQL Server thật; các kiểm thử transaction nghiệp vụ nhiều dòng trong danh sách vẫn cần thực hiện khi xây API. Xem implementation.md để phân biệt phạm vi đã kiểm chứng.
 
 ## 12. Kết quả vòng review và cách đi sâu
 
 Ngày 26/10/2026 người dùng đồng ý cả ba điểm: giữ hàng khi xác nhận, một kho chính MVP, ghi nhận thu đủ tiền hàng COD độc lập giao hàng. Đây không phải phê duyệt tự động mọi trường hoặc quy tắc chi tiết của toàn bộ ERD.
 
-Đi sâu từng phần: [01 — Sản phẩm](database/01-products.md), [02 — SKU, quy cách và giá](database/02-product-variants.md), [03 — Lô thành phẩm](database/03-product-batches.md), tiếp đến kho, đơn hàng và gym. Mỗi bản chi tiết phân biệt phần đã chốt với đề xuất mới; chưa chạy migration.
+Đi sâu từng phần: [01 — Sản phẩm](database/01-products.md), [02 — SKU, quy cách và giá](database/02-product-variants.md), [03 — Lô thành phẩm](database/03-product-batches.md), tiếp đến kho, đơn hàng và gym. Các bản chi tiết giữ bối cảnh thiết kế ban đầu; trạng thái migration hiện tại được ghi trong implementation.md.
 
 Đã phân tích kho, chứng từ và đơn trong chat; các tệp chi tiết 04–06 chưa được lưu đầy đủ. Tệp mới: [07 — Phân bổ giữ hàng](database/07-order-allocations.md), [Thông báo Telegram](database/order-notifications.md). Không áp dụng lại thao tác ghi tệp 04 đã bị từ chối.
 

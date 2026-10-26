@@ -1,4 +1,4 @@
-// SQL Server logical draft v0.1, 26/10/2026. Not an executed migration.
+// SQL Server model v0.2, 27/10/2026. Core mapped in EF; OperatingExpenses remains optional.
 // See database-design.md for CHECK, filtered indexes, transaction and temporal rules.
 Project UcGaNauChamMvp {
   database_type: 'SQL Server'
@@ -127,6 +127,8 @@ Table StockLocations {
   Kind varchar(20) [not null, note: 'Warehouse | Gym']
   GymId bigint [ref: > Gyms.Id]
   IsActive bit [not null, default: true]
+  CreatedAtUtc datetime2(3) [not null]
+  UpdatedAtUtc datetime2(3) [not null]
   Version rowversion [not null]
   Note: 'Filtered unique GymId where not null; CHECK Kind/GymId. Lock this row to serialize gym posting/count boundary. User approved one online warehouse for MVP on 2026-10-26.'
 }
@@ -176,8 +178,11 @@ Table OrderItems {
   SkuCodeSnapshot varchar(50) [not null]
   ProductNameSnapshot nvarchar(200) [not null]
   VariantLabelSnapshot nvarchar(150) [not null]
+  NetWeightGramsSnapshot int [not null]
   Quantity int [not null]
   UnitPrice decimal(18,0) [not null]
+  LineTotal decimal(18,0) [not null, note: 'Computed persisted UnitPrice * Quantity']
+  indexes { (OrderId, VariantId) [unique] }
   Note: 'CHECK Quantity>0, UnitPrice>=0. LineTotal computed from decimal UnitPrice*Quantity when migration is created. Frozen after confirmation.'
 }
 Table OrderAllocations {

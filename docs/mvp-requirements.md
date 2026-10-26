@@ -23,6 +23,7 @@ Bản thiết kế dữ liệu để thảo luận: [Database/ERD v0.1](database
 - Kiểm đếm do người dùng chủ động tạo bất cứ khi nào cần, không bắt buộc chu kỳ cố định.
 - Hàng ký gửi gym không dùng để cam kết tồn cho đơn online.
 - Backend ASP.NET Core Web API, frontend React, SQL Server dùng chung; backend MVP hoàn thành trước frontend.
+- Yêu cầu bổ sung ngày 27/10/2026: Clean Architecture 5 project, Unit of Work tại ranh giới use case; global rate limiting cho API nghiệp vụ và named policies theo nhóm. Xem [đặc tả kiến trúc backend](backend-architecture.md). Đây là yêu cầu triển khai, chưa phải tính năng đã code.
 - Chưa dùng RabbitMQ hoặc Redis lock. Bảo vệ dữ liệu bằng transaction, ràng buộc database, concurrency control và idempotency phù hợp.
 
 ## 2. Vai trò — đề xuất cho MVP
