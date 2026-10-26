@@ -1,3 +1,4 @@
+using ForFitChicken.Application.Abstractions.Persistence;
 using ForFitChicken.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -20,6 +21,7 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<ForFitChickenDbContext>(options => options.UseSqlServer(connectionString));
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 
         return services;
     }
