@@ -1,0 +1,11 @@
+@ForFitChicken_HostAddress = https://localhost:7010
+
+GET {{ForFitChicken_HostAddress}}/health
+Accept: text/plain
+
+###
+
+GET {{ForFitChicken_HostAddress}}/swagger/v1/swagger.json
+Accept: application/json
+
+###
