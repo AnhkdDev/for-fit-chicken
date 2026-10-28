@@ -2,6 +2,7 @@ using ForFitChicken.Domain.Entities;
 using ForFitChicken.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ForFitChicken.Infrastructure.Persistence;
 
@@ -36,6 +37,11 @@ public class ForFitChickenDbContext(DbContextOptions<ForFitChickenDbContext> opt
         base.OnModelCreating(modelBuilder);
         modelBuilder.UseCollation("Latin1_General_100_CI_AS_SC");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ForFitChickenDbContext).Assembly);
+        var utc = new ValueConverter<DateTime, DateTime>(value => value, value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+        foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(type => type.GetProperties()))
+        {
+            if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?)) property.SetValueConverter(utc);
+        }
         modelBuilder.Entity<ApplicationUser>(builder =>
         {
             builder.Property(x => x.DisplayName).HasMaxLength(150).IsRequired();
