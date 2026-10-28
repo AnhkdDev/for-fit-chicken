@@ -4,6 +4,7 @@ using System.Text.Encodings.Web;
 using ForFitChicken.API;
 using ForFitChicken.API.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -30,7 +31,11 @@ public sealed class RateLimitApiFactory(Dictionary<string, string?>? overrides =
             services.AddControllers().AddApplicationPart(typeof(RateLimitProbeController).Assembly);
             services.AddSingleton<ReportGate>();
             services.AddTransient<IStartupFilter, TestClientAddressFilter>();
-            services.AddAuthentication("Test")
+            services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = "Test";
+                    options.DefaultChallengeScheme = "Test";
+                })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>("Test", _ => { });
         });
     }
@@ -53,6 +58,8 @@ public sealed class RateLimitApiFactory(Dictionary<string, string?>? overrides =
 
 // These routes/middleware exist in the test assembly only, never in the production API.
 [ApiController]
+[AllowAnonymous]
+[IgnoreAntiforgeryToken]
 [Route("api/rate-limit-probe")]
 public sealed class RateLimitProbeController(ReportGate gate) : ControllerBase
 {
