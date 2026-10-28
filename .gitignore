@@ -24,6 +24,10 @@
 *.bak
 *.mdf
 *.ldf
+**/App_Data/
 
 # Reference source — keep locally
 /CodeReverseASinTayBac/
+
+# Local build verification output
+/backend/ForFitChicken/artifacts/
