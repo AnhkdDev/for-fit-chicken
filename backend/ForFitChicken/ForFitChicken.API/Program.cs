@@ -1,27 +1,43 @@
 using ForFitChicken.API.RateLimiting;
+using ForFitChicken.API.Authentication;
+using ForFitChicken.Application.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using ForFitChicken.Infrastructure;
+using ForFitChicken.API.Commerce;
 
 namespace ForFitChicken.API;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        builder.Services.AddControllers();
+        builder.Services.AddControllers(options => options.Filters.Add<ApiAntiforgeryFilter>())
+            .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(allowIntegerValues: false)));
         builder.Services.AddProblemDetails();
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SchemaFilter<RecordValidationSchemaFilter>();
+            options.OperationFilter<CsrfOperationFilter>();
+        });
         builder.Services.AddHealthChecks();
-        builder.Services.AddAuthentication();
+        builder.Services.AddAdminAuthentication();
         builder.Services.AddApiRateLimiting(builder.Configuration);
         builder.Services.AddInfrastructure(builder.Configuration);
 
-        var app = builder.Build();
+        await using var app = builder.Build();
+
+        if (args.Contains("--bootstrap-owner", StringComparer.Ordinal))
+        {
+            await BootstrapOwnerAsync(app);
+            return;
+        }
 
         app.UseExceptionHandler();
         app.UseStatusCodePages();
+        app.UseMiddleware<BusinessExceptionMiddleware>();
 
         if (app.Environment.IsDevelopment())
         {
@@ -37,9 +53,19 @@ public class Program
 
         // Liveness only: database readiness is added with persistence features.
         // Explicit operational exemption: liveness must not consume business quotas.
-        app.MapHealthChecks("/health").DisableRateLimiting();
+        app.MapHealthChecks("/health").DisableRateLimiting().AllowAnonymous();
         app.MapControllers();
 
         app.Run();
+    }
+
+    private static async Task BootstrapOwnerAsync(WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        var config = app.Configuration.GetSection("BootstrapOwner");
+        var result = await scope.ServiceProvider.GetRequiredService<IOwnerBootstrapper>().CreateAsync(
+            config["UserName"] ?? "", config["DisplayName"] ?? "", config["Password"] ?? "", CancellationToken.None);
+        Console.WriteLine(result.Created ? "Owner created successfully." : "Owner not created: " + string.Join(", ", result.Errors));
+        Environment.ExitCode = result.Created ? 0 : 1;
     }
 }
