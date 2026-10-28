@@ -1,6 +1,6 @@
 # Thiết kế database MVP — bản ERD v0.1
 
-Thiết kế ngày 26/10/2026, cập nhật triển khai 27/10/2026. Entity, EF configurations và migration InitialSchema đã triển khai; database development hiện dùng SQL Server `KDADEPTRAI\KDADEPTRAI` theo yêu cầu thay LocalDB. Các use case nghiệp vụ còn cần triển khai. Xem [phạm vi đã kiểm chứng](database/implementation.md). Căn cứ: [nghiệp vụ](mvp-requirements.md), [màn hình/luồng](mvp-screens-and-flows.md). Sơ đồ: [Mermaid](erd.mmd). Từ điển trường: [DBML](database-schema.dbml).
+Thiết kế ngày 26/10/2026, cập nhật triển khai 27/10/2026. Entity, EF configurations, InitialSchema và các service/API MVP đã triển khai; database development dùng SQL Server `KDADEPTRAI\KDADEPTRAI` theo yêu cầu thay LocalDB. Trạng thái và giới hạn mới nhất: [tiến độ MVP](mvp-backend-progress.md), [phạm vi schema](database/implementation.md), [API](mvp-backend-api.md). Căn cứ: [nghiệp vụ](mvp-requirements.md), [màn hình/luồng](mvp-screens-and-flows.md). Sơ đồ: [Mermaid](erd.mmd). Từ điển trường: [DBML](database-schema.dbml).
 
 ## 1. Những quyết định cơ sở
 

@@ -4,8 +4,8 @@ Ngày 27/10/2026. Người dùng yêu cầu áp dụng Unit of Work và rate lim
 Đã triển khai nền IUnitOfWork/EfUnitOfWork, global limiter và named policies ngày 27/10/2026.
 Đã bổ sung entity, EF configurations, Identity schema và InitialSchema; migration đã áp dụng
 trên SQL Server development `KDADEPTRAI\KDADEPTRAI` (đã chuyển từ LocalDB theo yêu cầu).
-Tổng 26 kiểm thử đạt trên server mới (15 SQL, 11 HTTP/configuration).
-Các use case nghiệp vụ bên dưới còn cần triển khai; chưa đổi runtime.
+Sau bổ sung MVP, tổng 56 kiểm thử đạt trên server mới. Các service nghiệp vụ và adapter đã triển khai;
+nguồn trạng thái mới nhất là [tiến độ MVP](mvp-backend-progress.md). Chưa đổi runtime hoặc deploy production.
 
 ## 1. Giữ nguyên Clean Architecture
 
@@ -139,7 +139,8 @@ reports 2 đồng thời theo user/client; cần restart sau sửa settings, ch�
 2. Unit of Work và abstraction transaction scoped: đã hoàn thành; repository bổ sung theo use case.
 3. Migration trên SQL Server development: đã hoàn thành, có kiểm thử database tạm riêng.
 4. Global/named rate limiting và phản hồi 429: đã hoàn thành.
-5. Làm auth, catalog, kho, COD, Telegram, gym; bổ sung policy theo endpoint và kiểm thử cùng từng module.
+5. Auth, catalog, kho, COD, Telegram adapter/worker, gym, nội dung và reports đã triển khai;
+   xem [tiến độ MVP](mvp-backend-progress.md), [API](mvp-backend-api.md) và [bàn giao](HANDOFF.md).
 
 Không cần thêm bảng database chỉ để lưu Unit of Work hoặc rate limiting trong process.
 

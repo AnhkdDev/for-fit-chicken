@@ -9,10 +9,12 @@ là UTC. Không chạy migration tự động khi API khởi động.
 - Domain có 22 entity nghiệp vụ và enum, không tham chiếu EF/Identity.
 - Infrastructure chứa fluent configurations, DbContext và migration/snapshot.
 - Identity dùng User/Role khóa long và đủ 7 bảng framework. Seed hai role Owner/Operator;
-  không tạo tài khoản hoặc mật khẩu mặc định. Chưa có API đăng nhập hay cấu hình phiên/token.
+  không tạo tài khoản hoặc mật khẩu mặc định. API cookie authentication, CSRF và bootstrap Owner
+  đã bổ sung ở giai đoạn auth; không cần migration mới. Xem [API auth](../admin-auth-api.md).
 - Không triển khai OperatingExpenses, ngân hàng/QR, hoa hồng hoặc phí vận chuyển.
-- DbContext hiện lưu các thuộc tính và khóa scalar. Repository, DTO, validation và hành vi
-  nghiệp vụ được bổ sung theo từng use case, không trả trực tiếp entity ra public API.
+- DbContext lưu các thuộc tính và khóa scalar. Các service Application/Commerce triển khai DTO,
+  validation và hành vi nghiệp vụ; ICommerceStore/CommerceStore materialize query và dùng chung context/UoW.
+  Không trả trực tiếp entity ra public API.
 
 ## Quy ước và các bổ sung từ ERD
 
@@ -32,9 +34,10 @@ là UTC. Không chạy migration tự động khi API khởi động.
 - CHECK bảo vệ số lượng tồn, điều kiện hàng, endpoint di chuyển, metadata posting/void,
   cấu trúc JSON và trạng thái lease thông báo.
 
-## Giới hạn cần xử lý ở Application
+## Quy tắc Application đã bổ sung trong lượt MVP
 
-Schema không thay thế transaction nghiệp vụ. Các quy tắc sau chưa được triển khai:
+Schema không thay thế transaction nghiệp vụ. Các service Application đã triển khai các quy tắc dưới đây;
+xem [hợp đồng API](../mvp-backend-api.md) để biết giới hạn chính xác (không phải tất cả tính năng tương lai):
 
 - Chỉ dùng kho chính cho WarehouseBalances và đơn online; không dùng hàng gym để cam kết bán.
 - Xác nhận đơn mới giữ hàng; phân bổ đúng SKU/lô Good chưa hết hạn hoặc khóa bán,
@@ -61,7 +64,10 @@ Theo yêu cầu chuyển server, đã tạo lại schema trên `KDADEPTRAI\KDADE
 cả 26 tests trên server này, rồi xóa đúng database `ForFitChicken_Development` cũ ở LocalDB
 sau khi xác minh không có dữ liệu nghiệp vụ. Cấu hình development và mặc định SQL tests
 đều dùng server mới với Windows Authentication.
-Chưa có API nghiệp vụ hoặc worker Telegram. Bước tiếp theo: xác thực và phân quyền nội bộ.
+Đã có API auth, catalog/media, sản phẩm/lô/kho, COD, gym, content, reports và worker Telegram.
+Bộ kiểm thử mới nhất: 56/56 đạt, không cần migration mới. Đã sửa mặc định nullable enum trong Domain
+và gắn UTC khi materialize DateTime từ SQL để JSON trả đúng múi giờ. Không gửi Telegram thật.
+Bước tiếp theo: Owner/cấu hình/dữ liệu thật, frontend và UAT; xem [HANDOFF](../HANDOFF.md).
 
 Hướng dẫn lệnh: [backend README](../../backend/ForFitChicken/README.md).
 Khi đổi schema tiếp theo, tạo migration mới; không sửa InitialSchema đã áp dụng.
