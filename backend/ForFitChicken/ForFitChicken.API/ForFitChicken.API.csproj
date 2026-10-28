@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <UserSecretsId>ForFitChicken-Development-72986d88-27cd-4f29-8a6a-e78bca184343</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\ForFitChicken.Application\ForFitChicken.Application.csproj" />
     <ProjectReference Include="..\ForFitChicken.Infrastructure\ForFitChicken.Infrastructure.csproj" />
