@@ -14,10 +14,10 @@ public sealed class SchemaTests(MigratedDatabaseFixture fixture) : IClassFixture
     public async Task Migration_CreatesCoreAndIdentityTables_WithoutOptionalExpenses()
     {
         await using var db = fixture.Context();
-        Assert.Single(await db.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(2, (await db.Database.GetAppliedMigrationsAsync()).Count());
         var tableCount = await db.Database.SqlQueryRaw<int>(
             "SELECT COUNT(*) AS [Value] FROM sys.tables WHERE [name] <> '__EFMigrationsHistory'").SingleAsync();
-        Assert.Equal(29, tableCount);
+        Assert.Equal(32, tableCount);
         Assert.Equal(new[] { "Operator", "Owner" }, await db.Roles.OrderBy(x => x.Name).Select(x => x.Name).ToArrayAsync());
         Assert.Equal(0, await db.Database.SqlQueryRaw<int>(
             "SELECT COUNT(*) AS [Value] FROM sys.foreign_keys WHERE delete_referential_action <> 0").SingleAsync());

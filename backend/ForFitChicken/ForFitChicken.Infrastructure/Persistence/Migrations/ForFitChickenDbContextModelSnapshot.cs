@@ -545,6 +545,110 @@ namespace ForFitChicken.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ForFitChicken.Domain.Entities.MediaObjectReservation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("ActiveUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ByteSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique();
+
+                    b.HasIndex("State", "CreatedAtUtc");
+
+                    b.ToTable("MediaObjectReservations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MediaObjectReservations_Bytes", "[ByteSize] >= 0");
+
+                            t.HasCheckConstraint("CK_MediaObjectReservations_State", "[State] IN ('Reserved','Unknown','Stored','Deleting','Deleted')");
+                        });
+                });
+
+            modelBuilder.Entity("ForFitChicken.Domain.Entities.MediaStorageState", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ChargedBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("Initialized")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastReconciledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReconcileToken")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReconcileUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ScopeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("UploadsPaused")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MediaStorageStates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MediaStorageStates_Bytes", "[ChargedBytes] >= 0 AND [Id] = 1");
+                        });
+                });
+
+            modelBuilder.Entity("ForFitChicken.Domain.Entities.MediaUsageCounter", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("Bytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MediaUsageCounters", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MediaUsageCounters_NonNegative", "[Count] >= 0 AND [Bytes] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("ForFitChicken.Domain.Entities.NotificationJob", b =>
                 {
                     b.Property<long>("Id")

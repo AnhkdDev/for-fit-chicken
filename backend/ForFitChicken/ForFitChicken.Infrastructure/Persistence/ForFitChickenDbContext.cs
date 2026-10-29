@@ -10,6 +10,9 @@ public class ForFitChickenDbContext(DbContextOptions<ForFitChickenDbContext> opt
     : IdentityDbContext<ApplicationUser, ApplicationRole, long>(options)
 {
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
+    public DbSet<MediaStorageState> MediaStorageStates => Set<MediaStorageState>();
+    public DbSet<MediaObjectReservation> MediaObjectReservations => Set<MediaObjectReservation>();
+    public DbSet<MediaUsageCounter> MediaUsageCounters => Set<MediaUsageCounter>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
