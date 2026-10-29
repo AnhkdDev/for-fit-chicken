@@ -30,7 +30,20 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<ICommerceStore, CommerceStore>();
-        services.AddSingleton<IMediaStorage, LocalMediaStorage>();
+        services.AddOptions<MediaOptions>().Bind(configuration.GetSection("Media"))
+            .Validate(x => x.IsValid(), "Media provider must be Local or R2; R2 requires endpoint, bucket and credentials.").ValidateOnStart();
+        services.AddSingleton<LocalMediaStorage>();
+        services.AddSingleton<R2MediaStorage>();
+        services.AddSingleton<ConfiguredMediaStorage>();
+        services.AddSingleton<ImageOptimizer>();
+        services.AddSingleton<MediaWorkGates>();
+        services.AddSingleton<IMediaPolicySettings, ConfiguredMediaPolicySettings>();
+        services.AddSingleton<IMediaPolicyAccess, MediaPolicyAccess>();
+        services.AddScoped<MediaPolicyService>();
+        services.AddScoped<GovernedMediaStorage>();
+        services.AddScoped<IMediaStorage>(p => p.GetRequiredService<GovernedMediaStorage>());
+        services.AddScoped<IMediaMaintenance>(p => p.GetRequiredService<GovernedMediaStorage>());
+        services.AddHostedService<MediaMaintenanceWorker>();
         services.AddScoped<CatalogService>();
         services.AddScoped<InventoryService>();
         services.AddScoped<OrderService>();

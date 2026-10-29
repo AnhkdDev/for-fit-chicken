@@ -10,7 +10,7 @@ public sealed class ApiRateLimitOptionsValidator : IValidateOptions<ApiRateLimit
         foreach (var (section, window) in new[]
                  {
                      ("Global", settings.Global), ("Catalog", settings.Catalog),
-                     ("Login", settings.Login), ("Checkout", settings.Checkout), ("Admin", settings.Admin)
+                     ("Login", settings.Login), ("Checkout", settings.Checkout), ("Admin", settings.Admin), ("Upload", settings.Upload)
                  })
         {
             if (window is null || window.PermitLimit <= 0 || window.WindowSeconds <= 0

@@ -7,4 +7,5 @@ public static class RateLimitPolicies
     public const string Checkout = "checkout";
     public const string Admin = "admin";
     public const string Reports = "reports";
+    public const string Upload = "upload";
 }

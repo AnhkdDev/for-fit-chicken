@@ -54,13 +54,19 @@ public sealed class MediaController(CatalogService catalog) : StaffController
     public async Task<IActionResult> Get(long id, CancellationToken token)
     {
         var (stream, type) = await catalog.OpenMediaAsync(id, User.IsInRole(AdminRoles.Owner) || User.IsInRole(AdminRoles.Operator), token);
-        Response.Headers["X-Content-Type-Options"] = "nosniff"; Response.Headers.CacheControl = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers.CacheControl = User.Identity?.IsAuthenticated == true ? "no-store" : "public, max-age=60";
+        Response.Headers.Vary = "Cookie";
         return File(stream, type);
     }
-    [HttpPost, Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Admin), RequestSizeLimit(11 * 1024 * 1024)]
+    [HttpPost, Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Upload), RequestSizeLimit(6 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 6 * 1024 * 1024)]
     [Consumes("multipart/form-data")]
     public async Task<AssetView> Upload(IFormFile file, CancellationToken token)
-    { await using var stream = file.OpenReadStream(); return await catalog.UploadAsync(stream, Actor, token); }
+    {
+        if (file.Length is <= 0 or > 5 * 1024 * 1024) throw new BusinessException(400, "IMAGE_TOO_LARGE", "Ảnh đầu vào tối đa 5 MiB.");
+        await using var stream = file.OpenReadStream(); return await catalog.UploadAsync(stream, Actor, token);
+    }
 }
 
 [ApiController, Route("api/admin/products"), Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Admin)]

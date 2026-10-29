@@ -28,6 +28,7 @@ public static class RateLimitingExtensions
 
             AddWindowPolicy(options, RateLimitPolicies.Catalog, settings.Catalog, useIdentity: false);
             AddWindowPolicy(options, RateLimitPolicies.Login, settings.Login, useIdentity: false);
+            AddWindowPolicy(options, RateLimitPolicies.Upload, settings.Upload, useIdentity: true);
             AddWindowPolicy(options, RateLimitPolicies.Checkout, settings.Checkout, useIdentity: false);
             AddWindowPolicy(options, RateLimitPolicies.Admin, settings.Admin, useIdentity: true);
 

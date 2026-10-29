@@ -9,6 +9,7 @@ public sealed class ApiRateLimitOptions
     public WindowLimitOptions Login { get; set; } = new() { PermitLimit = 5 };
     public WindowLimitOptions Checkout { get; set; } = new() { PermitLimit = 10 };
     public WindowLimitOptions Admin { get; set; } = new() { PermitLimit = 120 };
+    public WindowLimitOptions Upload { get; set; } = new() { PermitLimit = 10 };
     public int ReportConcurrencyLimit { get; set; } = 2;
 }
 
