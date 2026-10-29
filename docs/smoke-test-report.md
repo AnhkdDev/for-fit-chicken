@@ -1,6 +1,6 @@
 # Live HTTPS smoke-test report
 
-Date: 2026-10-27 13:30:20 +07:00
+Date: 2026-10-29 08:46:17 +07:00
 Result: PASSED
 
 Real Kestrel HTTPS API, real Identity cookie/CSRF and isolated SQL Server database.
@@ -11,7 +11,7 @@ Server: KDADEPTRAI\KDADEPTRAI. No development/business data was created or modif
 - PASS: Real HTTPS API started and health returned 200
 - PASS: Live Swagger/OpenAPI is available
 - PASS: Owner login succeeded with real cookie and CSRF
-- PASS: Product, SKU, real image upload and publication succeeded
+- PASS: Product, SKU, optimized WebP upload and publication succeeded
 - PASS: Guest checkout is idempotent and does not reserve stock
 - PASS: Confirmation reserves exactly two packages
 - PASS: Handover decrements stock once even when repeated

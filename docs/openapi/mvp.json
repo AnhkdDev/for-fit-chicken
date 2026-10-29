@@ -1996,6 +1996,310 @@
         }
       }
     },
+    "/api/admin/media/storage": {
+      "get": {
+        "tags": [
+          "AdminMedia"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaStorageStatus"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaStorageStatus"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaStorageStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/media/uploads": {
+      "put": {
+        "tags": [
+          "AdminMedia"
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Get /api/csrf with the same cookie jar. Fetch a fresh token after login.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaPauseInput"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaPauseInput"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaPauseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "boolean"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/media/reconcile": {
+      "post": {
+        "tags": [
+          "AdminMedia"
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Get /api/csrf with the same cookie jar. Fetch a fresh token after login.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaStorageStatus"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaStorageStatus"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaStorageStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/media/orphans": {
+      "get": {
+        "tags": [
+          "AdminMedia"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MediaObjectStatus"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MediaObjectStatus"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MediaObjectStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/media/assets": {
+      "get": {
+        "tags": [
+          "AdminMedia"
+        ],
+        "parameters": [
+          {
+            "name": "unusedOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetStatusPage"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetStatusPage"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetStatusPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/media/assets/{id}": {
+      "delete": {
+        "tags": [
+          "AdminMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Get /api/csrf with the same cookie jar. Fetch a fresh token after login.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaDeleteResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaDeleteResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaDeleteResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/media/orphans/{id}/delete": {
+      "post": {
+        "tags": [
+          "AdminMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Get /api/csrf with the same cookie jar. Fetch a fresh token after login.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/admin/notifications": {
       "get": {
         "tags": [
@@ -4045,6 +4349,158 @@
           },
           "order": {
             "$ref": "#/components/schemas/CheckoutInput"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaAssetStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "contentType": {
+            "type": "string",
+            "nullable": true
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaAssetStatusPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAssetStatus"
+            },
+            "nullable": true
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaDeleteResult": {
+        "type": "object",
+        "properties": {
+          "metadataRemoved": {
+            "type": "boolean"
+          },
+          "objectDeleted": {
+            "type": "boolean"
+          },
+          "cleanupRequired": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaObjectStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "storageKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaPauseInput": {
+        "type": "object",
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MediaStorageStatus": {
+        "type": "object",
+        "properties": {
+          "chargedBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "limitBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uncertainBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "activeUploads": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "initialized": {
+            "type": "boolean"
+          },
+          "uploadsPaused": {
+            "type": "boolean"
+          },
+          "lastReconciledAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "classAThisMonth": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "classBThisMonth": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "nodeReady": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

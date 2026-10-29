@@ -1,16 +1,16 @@
 [CmdletBinding()]
-param()
+param([string]$Configuration = 'Debug')
 
 $ErrorActionPreference = 'Stop'
 $solutionRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $apiRoot = Join-Path $solutionRoot 'ForFitChicken.API'
-$apiDll = Join-Path $apiRoot 'bin\Debug\net8.0\ForFitChicken.API.dll'
+$apiDll = Join-Path $apiRoot "bin\$Configuration\net8.0\ForFitChicken.API.dll"
 $reportPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..\docs\smoke-test-report.md'))
 $suffix = [Guid]::NewGuid().ToString('N')
 $databaseName = 'ForFitChicken_SmokeTests_' + $suffix
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) $databaseName
 $connection = "Server=KDADEPTRAI\KDADEPTRAI;Database=$databaseName;Integrated Security=true;Encrypt=true;TrustServerCertificate=true"
-$keys = @('ConnectionStrings__DefaultConnection', 'BootstrapOwner__UserName', 'BootstrapOwner__DisplayName', 'BootstrapOwner__Password', 'Telegram__Enabled', 'Media__RootPath')
+$keys = @('ConnectionStrings__DefaultConnection', 'BootstrapOwner__UserName', 'BootstrapOwner__DisplayName', 'BootstrapOwner__Password', 'Telegram__Enabled', 'Media__RootPath', 'Media__Provider')
 $previous = @{}
 foreach ($key in $keys) { $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process') }
 $checks = [Collections.Generic.List[string]]::new()
@@ -48,11 +48,12 @@ try {
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
     [Environment]::SetEnvironmentVariable('ConnectionStrings__DefaultConnection', $connection, 'Process')
     [Environment]::SetEnvironmentVariable('Telegram__Enabled', 'false', 'Process')
+    [Environment]::SetEnvironmentVariable('Media__Provider', 'Local', 'Process')
     [Environment]::SetEnvironmentVariable('Media__RootPath', (Join-Path $tempRoot 'media'), 'Process')
     Push-Location $solutionRoot
     try {
         $databaseMayExist = $true
-        $migrationOutput = & dotnet ef database update --no-build --project ForFitChicken.Infrastructure --startup-project ForFitChicken.API --context ForFitChickenDbContext -- --environment Development --Logging:LogLevel:Default Warning 2>&1
+        $migrationOutput = & dotnet ef database update --no-build --configuration $Configuration --project ForFitChicken.Infrastructure --startup-project ForFitChicken.API --context ForFitChickenDbContext -- --environment Development --Logging:LogLevel:Default Warning 2>&1
         if ($LASTEXITCODE -ne 0) { throw 'Migration failed for the isolated smoke database.' }
         $userName = 'smoke-' + $suffix.Substring(0, 12)
         $password = 'Smoke-' + [Guid]::NewGuid().ToString('N') + '-aA7!'
@@ -87,13 +88,13 @@ try {
     $product = Request POST '/api/admin/products' $productInput
     $variant = Request POST "/api/admin/products/$($product.id)/variants" @{ skuCode = 'SMOKE-' + $suffix; label = '200g'; netWeightGrams = 200; sellingPrice = 35000; isActive = $true; sortOrder = 0; version = $null }
     $imagePath = Join-Path $tempRoot 'sample.png'
-    [IO.File]::WriteAllBytes($imagePath, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jz1kAAAAASUVORK5CYII='))
+    [IO.File]::WriteAllBytes($imagePath, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABHNCSVQICAgIfAhkiAAAAA1JREFUCJlj+L+U4T8ABu8CpCubeeAAAAAASUVORK5CYII='))
     $asset = Invoke-RestMethod -Uri "$baseUrl/api/media" -Method Post -WebSession $owner -Headers @{ 'X-CSRF-TOKEN' = $ownerToken } -Form @{ file = Get-Item -LiteralPath $imagePath } -SkipCertificateCheck
     $null = Request POST "/api/admin/products/$($product.id)/images" @{ version = $product.version; image = @{ assetId = $asset.id; variantId = $null; altText = 'Smoke-test image'; sortOrder = 0 } }
     $product = Request GET "/api/admin/products/$($product.id)"
     $productInput.version = $product.version; $productInput.isPublished = $true
     $product = Request PUT "/api/admin/products/$($product.id)" $productInput
-    Check $product.isPublished 'Product, SKU, real image upload and publication succeeded'
+    Check ($product.isPublished -and $asset.contentType -eq 'image/webp') 'Product, SKU, optimized WebP upload and publication succeeded'
     $batch = Request POST '/api/admin/inventory/batches' @{ variantId = $variant.id; batchCode = 'B-' + $suffix; manufacturedOn = [DateTime]::UtcNow.AddHours(7).ToString('yyyy-MM-dd'); expiresAtUtc = [DateTime]::UtcNow.AddDays(3).ToString('O'); notes = 'Temporary test batch' }
     $null = Request POST '/api/admin/inventory/documents' @{ operationKey = [Guid]::NewGuid().ToString(); documentType = 'ProductionReceipt'; reason = 'Smoke receipt'; lines = @(@{ batchId = $batch.id; quantity = 20; fromLocationId = $null; fromCondition = $null; toLocationId = $warehouse; toCondition = 'Good'; note = $null }) }
     $guestToken = (Request GET '/api/csrf' -GuestRequest $true).requestToken
