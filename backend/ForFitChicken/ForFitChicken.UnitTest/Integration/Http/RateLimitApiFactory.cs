@@ -25,7 +25,8 @@ public sealed class RateLimitApiFactory(Dictionary<string, string?>? overrides =
     {
         builder.UseEnvironment("Development");
         builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(overrides ?? []));
+            configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Media:Provider"] = "Local", ["Telegram:Enabled"] = "false" })
+                .AddInMemoryCollection(overrides ?? []));
         builder.ConfigureTestServices(services =>
         {
             services.AddControllers().AddApplicationPart(typeof(RateLimitProbeController).Assembly);

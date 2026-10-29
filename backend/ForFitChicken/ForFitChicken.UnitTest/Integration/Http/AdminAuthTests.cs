@@ -19,6 +19,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 
 namespace ForFitChicken.UnitTest.Integration.Http;
 
@@ -28,6 +29,8 @@ public sealed class AdminAuthApiFactory(MigratedDatabaseFixture database, int lo
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+        builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Media:Provider"] = "Local", ["Telegram:Enabled"] = "false" }));
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<DbContextOptions<ForFitChickenDbContext>>();
@@ -292,8 +295,8 @@ public sealed class AdminAuthTests(MigratedDatabaseFixture database) : IClassFix
                     .CreateAsync(name, "Test", Password, CancellationToken.None);
             }
             var results = await Task.WhenAll(CreateAsync("concurrent-owner-a"), CreateAsync("concurrent-owner-b"));
-            Assert.Single(results.Where(x => x.Created));
-            Assert.Single(results.Where(x => x.Errors.Contains("OwnerAlreadyExists")));
+            Assert.Single(results, x => x.Created);
+            Assert.Single(results, x => x.Errors.Contains("OwnerAlreadyExists"));
             await using var verification = isolated.Context();
             Assert.Equal(1, await verification.Users.CountAsync());
             Assert.Equal(1, await verification.UserRoles.CountAsync(x => x.RoleId == 1));

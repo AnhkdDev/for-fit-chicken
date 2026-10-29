@@ -48,7 +48,7 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
             try { await s.Run(p => p.GetRequiredService<OrderService>().TransitionAsync(order.Id, "confirm", order.Version, null, s.Actor, default)); return true; }
             catch (BusinessException e) when (e.Code == "INSUFFICIENT_STOCK") { return false; }
         }
-        var results = await Task.WhenAll(Confirm(first), Confirm(second)); Assert.Single(results.Where(x => x));
+        var results = await Task.WhenAll(Confirm(first), Confirm(second)); Assert.Single(results, x => x);
         await s.Run(async p =>
         {
             var db = p.GetRequiredService<ForFitChickenDbContext>();
