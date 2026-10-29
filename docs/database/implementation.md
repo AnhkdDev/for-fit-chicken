@@ -1,5 +1,10 @@
 # Schema backend đã triển khai
 
+Mốc mới 29/10/2026: đã áp dụng thêm `20261029012656_AddMediaGovernance` (giữ nguyên InitialSchema),
+thêm MediaStorageStates, MediaObjectReservations, MediaUsageCounters. Tổng 32 bảng không kể EF history
+(22 bảng nghiệp vụ gốc + 3 bảng vận hành media + 7 Identity). Xem docs/media-security.md để biết invariant,
+reservation/lease, quota không reset và yêu cầu giữ các bảng này khi backup/chuyển VPS.
+
 Cập nhật 27/10/2026. Migration `20261026181658_InitialSchema` đã áp dụng vào
 `ForFitChicken_Development` trên `KDADEPTRAI\KDADEPTRAI`. Phần ngày trong tên migration
 là UTC. Không chạy migration tự động khi API khởi động.

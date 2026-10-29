@@ -57,3 +57,9 @@ rollback when the durable job save fails. Media uses its own empty GUID temp dir
 Telegram sender/worker tests use fake HTTP/senders, never the real Telegram API.
 The test-only DbContext-options hook installs the failure interceptor inside the factory's
 single context registration; adding a second AddDbContext later does not reliably install it.
+
+2026-10-29: 83 tests passed, SQL enabled, no skips. Added media policy and governed-storage tests for
+concurrent quota, uncertain uploads, operation budgets, scan leases/fail-closed startup, safe metadata/orphan
+cleanup and real HTTP Operator/Owner upload + CSRF. SkiaSharp image tests use real encoding/decoding;
+S3 in automated tests is fake. Real Cloudflare roundtrip evidence is recorded separately in media-security-progress.
+xUnit updated to 2.9.3 to remove old transitive System.Net.Http/Regex advisory graph.

@@ -148,3 +148,11 @@ Không cần thêm bảng database chỉ để lưu Unit of Work hoặc rate lim
 
 - [EF Core DbContext lifetime và Unit of Work](https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/).
 - [ASP.NET Core rate limiting](https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit?view=aspnetcore-8.0).
+
+## Media governance — 29/10/2026
+
+MediaPolicyService/Application owns durable quota/daily/operation budgets, reservations, scan fencing
+and cleanup rules; Domain has three operational entities. Infrastructure implements fresh-scope UoW access,
+R2/raw routing, bounded SkiaSharp WebP processing, public cache and startup/periodic reconciliation.
+Controller authorization remains Staff upload / Owner maintenance; external I/O stays outside SQL transactions.
+Full invariants/config are in docs/media-security.md, with VPS/backup/secret handling in docs/vps-maintenance-runbook.md.

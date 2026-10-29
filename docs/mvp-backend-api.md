@@ -1,6 +1,6 @@
 # Hợp đồng backend MVP và hướng dẫn frontend
 
-Cập nhật 27/10/2026. Đây là phạm vi API đã triển khai trong source, không phải mô tả frontend đã xây.
+Cập nhật 29/10/2026. Đây là phạm vi API đã triển khai trong source, không phải mô tả frontend đã xây.
 Xem [tiến độ kiểm chứng](mvp-backend-progress.md), [bàn giao](HANDOFF.md), [OpenAPI máy đọc](openapi/mvp.json)
 và [auth/cookie/CSRF](admin-auth-api.md). Swagger trực tiếp ở `/swagger` trong Development.
 
@@ -40,13 +40,50 @@ và [auth/cookie/CSRF](admin-auth-api.md). Swagger trực tiếp ở `/swagger` 
 | GET `/api/gyms` | Điểm bán công khai, không có liên hệ/ghi chú nội bộ hoặc tồn |
 | GET `/api/content` | Chỉ bản PublishedJson, không bản nháp |
 | GET `/api/media/{id}` | Ảnh công khai nếu được tham chiếu từ nội dung đã publish; admin có thể xem ảnh chưa công bố |
-| POST `/api/media` | Admin upload multipart field `file`, PNG/JPEG/WebP tối đa 10MB, cần CSRF |
+| POST `/api/media` | Owner/Operator, multipart `file`, PNG/JPEG/WebP đầu vào tối đa 5 MiB, cần CSRF; output WebP |
 
 Media lưu ngoài DB/web root; key ngẫu nhiên, kiểm tra signature file và giới hạn byte; không nhận SVG/HTML.
-Không có xử lý resize/crop hay kiểm định chất lượng ảnh. `Media:RootPath` cho phép chọn thư mục lưu bền.
+Có decode, auto-orient, resize vừa 1920×1920 và WebP quality 80; không nhận ảnh động, tối đa 24 megapixel/10000 pixel mỗi chiều.
+`Media:RootPath` cho phép chọn thư mục local bền. Chỉ lưu ảnh tối ưu, không lưu gốc. Không upscale ảnh nhỏ.
 Mặc định `<working-directory>/App_Data/media`, dotnet run dùng working directory API project; thư mục này được Git ignore.
-Production cần volume bền/backup ảnh riêng. Không xóa ảnh vật lý nếu DB còn tham chiếu; hiện không mở API xóa asset.
+Local cần volume bền/backup ảnh riêng. Không xóa ảnh vật lý nếu DB còn tham chiếu; hiện không mở API xóa asset.
+Từ 28/10/2026 hỗ trợ `Media:Provider=Local|R2`. R2 dùng bucket private và vẫn trả ảnh qua API,
+không thay DTO, route, CSRF hay quyền ảnh nháp. Key mới `r2/<guid>.<ext>` route sang R2;
+key phẳng cũ vẫn đọc Local. Không tự chuyển file cũ. Lỗi cloud trả `MEDIA_STORAGE_UNAVAILABLE` (503),
+object thiếu trả `MEDIA_MISSING` (404). Xem [thiết lập R2](r2-storage-setup.md) cho cấu hình User Secrets,
+kiểm thử thật và lưu ý backup/migration; cloud HTTP không nằm trong transaction SQL.
 Body nội dung được xem là plain text; frontend không chèn raw HTML bằng dangerouslySetInnerHTML.
+
+## Bảo vệ dung lượng và vận hành media (29/10/2026)
+
+Quota R2 **9.000.000.000 byte tổng đang lưu**, không reset tháng; giữ chỗ SQL trước HTTP, Unknown không tự trả quota.
+Khởi động node mới phải đối soát trước upload; sau đó worker đối soát mỗi 6 giờ. Snapshot cũ quá 24 giờ chặn upload.
+Upload policy riêng mặc định 10/phút/user; admission SQL 100/ngày toàn hệ thống, 50/ngày/user và 200 MB input/ngày.
+2 xử lý ảnh/process, 2 upload cloud active/DB. Ngân sách 100000 A/1000000 B mỗi tháng UTC, SDK auto-retry tắt.
+Public bytes cache RAM 64 MiB/5 phút, luôn kiểm tra quyền trước cache; private không dùng public cache.
+GET public có max-age=60, Vary Cookie; authenticated no-store. Có thể thấy bản browser cache tối đa 60 giây sau unpublish.
+
+Các API sau **chỉ Owner**; thao tác ghi cần CSRF, tất cả no-store:
+
+| API | Kết quả |
+| --- | --- |
+| GET `/api/admin/media/storage` | chargedBytes, limitBytes, uncertainBytes, activeUploads, initialized, uploadsPaused, lastReconciledAtUtc, classAThisMonth, classBThisMonth, warnings[], nodeReady |
+| PUT `/api/admin/media/uploads` | Body `{ "paused": true }` tắt upload mới; false để mở, không hủy upload đang chạy |
+| POST `/api/admin/media/reconcile` | Snapshot đầy đủ R2, trả status; không xóa object |
+| GET `/api/admin/media/assets?unusedOnly=true&page=1&size=20` | Page metadata không chứa khóa R2/credential; unused xét cả nháp và published |
+| DELETE `/api/admin/media/assets/{id}` | Chỉ khi không được product/gym/content draft+published tham chiếu và quá grace period (mặc định 24h) |
+| GET `/api/admin/media/orphans` | 100 ledger object đầu chưa có MediaAsset; chưa chắc đủ điều kiện xóa |
+| POST `/api/admin/media/orphans/{id}/delete` | Xóa orphan sau grace/không active; quota chỉ trả sau DELETE cloud thành công |
+
+DELETE asset trả `{metadataRemoved,objectDeleted,cleanupRequired}`. Metadata xóa trong transaction/audit trước HTTP;
+nếu cloud DELETE lỗi, metadataRemoved=true/objectDeleted=false/cleanupRequired=true, dung lượng vẫn charged và
+Owner xử lý trong orphan queue sau khi hết lease. Không giả định thành công vật lý chỉ từ HTTP 200 này.
+Gỡ liên kết ảnh sản phẩm không tự xóa metadata/file. Xóa ảnh không dùng là thao tác Owner chủ động, không tự dọn mọi ảnh cũ.
+
+Mã lỗi mới: MEDIA_STORAGE_QUOTA (409); MEDIA_DAILY_LIMIT/MEDIA_BUSY/MEDIA_UPLOAD_BUSY (429);
+MEDIA_RECONCILE_REQUIRED/MEDIA_SCOPE_CHANGED/MEDIA_R2_NOT_CONFIGURED/MEDIA_UPLOADS_PAUSED/MEDIA_OPERATION_BUDGET (503);
+MEDIA_STILL_REFERENCED/MEDIA_ORPHAN_TOO_NEW (409), INVALID_IMAGE/IMAGE_DIMENSIONS/IMAGE_TOO_LARGE (400).
+Chi tiết cấu hình/cảnh báo: [media-security.md](media-security.md). Chuyển VPS/backup: [runbook](vps-maintenance-runbook.md).
 
 ## Catalog quản trị
 

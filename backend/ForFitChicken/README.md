@@ -193,3 +193,41 @@ The script skips certificate trust verification only for its localhost HTTPS tes
 Latest run: 14/14 checks passed; the 56-test suite also passed. This run found and fixed a
 reserved MVC route parameter (`action` → `command`) and added real-HTTP regression coverage.
 See [smoke report](../../docs/smoke-test-report.md). This is API testing, not frontend UAT.
+
+## R2 image storage (2026-10-28)
+
+Media supports Local and private Cloudflare R2 through IMediaStorage. Default remains Local until
+credentials are configured. Run `scripts/setup-r2.ps1` once to save R2 endpoint/bucket/access keys
+in User Secrets, then restart in Development. API routes and draft/public authorization remain unchanged.
+R2 keys use r2/<guid>.<ext>; existing local keys remain local, no automatic file migration.
+See [R2 setup](../../docs/r2-storage-setup.md) for dashboard steps, cloud verification and backup limitations.
+Automated R2 tests use a fake S3 adapter, not a live Cloudflare bucket. Test hosts/smoke explicitly
+select Local and disable real Telegram; they must not use personal cloud credentials for uploads.
+
+## Development port already in use
+
+HTTPS profile binds https://localhost:7010 and http://localhost:5195. Run one API instance:
+use either Visual Studio F5 or `dotnet run --project ForFitChicken.API --launch-profile https`.
+Do not start a second instance while the first is running. Stop the old console with Ctrl+C,
+or Stop Debugging in Visual Studio, before restarting. Closing Swagger does not stop the API.
+
+To inspect listeners (PowerShell):
+
+```powershell
+Get-NetTCPConnection -LocalPort 7010,5195 -State Listen |
+    Select-Object LocalAddress,LocalPort,OwningProcess
+```
+
+Verify the process executable belongs to this repository before stopping it. Do not kill all dotnet
+processes or change configured ports just to conceal a duplicate API; frontend proxy/Swagger depend on these URLs.
+
+## Media security checkpoint 2026-10-29
+
+Current media contract: input 5 MiB -> bounded real decode/EXIF orientation -> max1920px -> WebP80.
+R2 quota is 9,000,000,000 bytes total, never monthly reset. SQL reservations/unknown states and counters
+survive VPS changes. Every node reconciles before enabling uploads; failed scans fail closed. Owner+Operator upload;
+Owner manages pause/status/reconcile/unused assets/orphans. See docs/media-security.md and docs/vps-maintenance-runbook.md.
+
+Validation: 83/83 SQL-enabled tests, 14/14 isolated real-HTTPS smoke; live guarded R2 WebP/read/cache/delete
+roundtrip passed. No known vulnerable NuGet dependencies reported at this checkpoint. No Linux VPS deployment yet.
+Do not carry only the binary: back up SQL (including quota tables), local legacy files, key ring, and secrets separately.
