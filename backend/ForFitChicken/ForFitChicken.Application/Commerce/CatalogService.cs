@@ -4,7 +4,7 @@ using ForFitChicken.Domain.Enums;
 
 namespace ForFitChicken.Application.Commerce;
 
-public sealed class CatalogService(ICommerceStore store, IUnitOfWork unit, TimeProvider clock, IMediaStorage media)
+public sealed class CatalogService(ICommerceStore store, IUnitOfWork unit, TimeProvider clock, IMediaStorage media, IMediaPolicySettings policySettings)
     : BusinessService(store, unit, clock)
 {
     public async Task<Page<ProductView>> ListAsync(bool publicOnly, int page, int size, CancellationToken token)
@@ -99,7 +99,8 @@ public sealed class CatalogService(ICommerceStore store, IUnitOfWork unit, TimeP
 
     public async Task<AssetView> UploadAsync(Stream stream, long actor, CancellationToken token)
     {
-        var file = await media.SaveAsync(stream, token);
+        var file = media is IMediaUploadContext secured
+            ? await secured.SaveAsync(stream, actor, token) : await media.SaveAsync(stream, token);
         try
         {
             return await Write(async () =>
@@ -110,6 +111,55 @@ public sealed class CatalogService(ICommerceStore store, IUnitOfWork unit, TimeP
             }, token);
         }
         catch { await media.DeleteAsync(file.StorageKey, CancellationToken.None); throw; }
+    }
+
+    public async Task<Page<MediaAssetStatus>> MediaAssetsAsync(bool unusedOnly, int page, int size, CancellationToken token)
+    {
+        page = Number(page); size = Size(size);
+        var query = Store.Query<MediaAsset>();
+        if (unusedOnly) {
+            var sections = await Store.ListAsync(Store.Query<SiteContent>(), token);
+            var contentIds = new HashSet<long>();
+            foreach (var json in sections.SelectMany(x => new[] { x.DraftJson, x.PublishedJson }).Where(x => !string.IsNullOrWhiteSpace(x))) {
+                try {
+                    var section = System.Text.Json.JsonSerializer.Deserialize<SiteSectionInput>(json!);
+                    Check(section?.AssetIds is not null, "MEDIA_REFERENCE_UNVERIFIED", "Nội dung không hợp lệ; chưa xác minh ảnh thừa.");
+                    foreach (var id in section!.AssetIds) contentIds.Add(id);
+                } catch (System.Text.Json.JsonException) { throw new BusinessException(409, "MEDIA_REFERENCE_UNVERIFIED", "Không xác minh được nội dung tham chiếu."); }
+            }
+            var ids = contentIds.ToArray();
+            var images = Store.Query<ProductImage>(); var gyms = Store.Query<Gym>();
+            query = query.Where(a => !images.Any(i => i.AssetId == a.Id) && !gyms.Any(g => g.CoverAssetId == a.Id) && !ids.Contains(a.Id));
+        }
+        var count = await Store.CountAsync(query, token);
+        var items = await Store.ListAsync(query.OrderByDescending(x => x.Id).Skip((page - 1) * size).Take(size), token);
+        return new(items.Select(x => new MediaAssetStatus(x.Id, x.ContentType, x.ByteSize, x.CreatedAtUtc, $"/api/media/{x.Id}")).ToArray(), count, page, size);
+    }
+
+    public async Task<MediaDeleteResult> DeleteUnusedAssetAsync(long id, long actor, CancellationToken token)
+    {
+        var key = await Write(async () => {
+            var asset = await Need<MediaAsset>(id, token);
+            Check(asset.CreatedAtUtc <= Now.AddHours(-policySettings.Current.OrphanGraceHours), "MEDIA_ORPHAN_TOO_NEW", "Ảnh chưa đủ thời gian chờ trước khi dọn.");
+            Check(!await Store.AnyAsync(Store.Query<ProductImage>().Where(x => x.AssetId == id), token) &&
+                !await Store.AnyAsync(Store.Query<Gym>().Where(x => x.CoverAssetId == id), token),
+                "MEDIA_STILL_REFERENCED", "Ảnh còn được sản phẩm/gym sử dụng.");
+            var sections = await Store.ListAsync(Store.Query<SiteContent>(), token);
+            foreach (var json in sections.SelectMany(x => new[] { x.DraftJson, x.PublishedJson }).Where(x => !string.IsNullOrWhiteSpace(x))) {
+                bool referenced;
+                try {
+                    var section = System.Text.Json.JsonSerializer.Deserialize<SiteSectionInput>(json!);
+                    Check(section?.AssetIds is not null, "MEDIA_REFERENCE_UNVERIFIED", "Nội dung không hợp lệ; chưa xóa ảnh.");
+                    referenced = section!.AssetIds.Contains(id);
+                }
+                catch (System.Text.Json.JsonException) { throw new BusinessException(409, "MEDIA_REFERENCE_UNVERIFIED", "Không xác minh được nội dung tham chiếu; chưa xóa ảnh."); }
+                Check(!referenced, "MEDIA_STILL_REFERENCED", "Ảnh còn được nội dung nháp/công khai sử dụng.");
+            }
+            Store.Remove(asset); Audit(actor, "UnusedMediaMetadataRemoved", nameof(MediaAsset), id); return asset.StorageKey;
+        }, token);
+        // SQL deletion commits first. A crash leaves a quota-charged orphan, never an uncharged object.
+        try { await media.DeleteAsync(key, token); return new(true, true, false); }
+        catch { return new(true, false, true); } // Owner must review orphan queue; no raw storage errors in response.
     }
 
     public async Task<(Stream Stream, string ContentType)> OpenMediaAsync(long id, bool admin, CancellationToken token)
@@ -127,7 +177,8 @@ public sealed class CatalogService(ICommerceStore store, IUnitOfWork unit, TimeP
             }
             Check(published, "NOT_FOUND", "Không tìm thấy ảnh công khai.", 404);
         }
-        return (await media.OpenAsync(asset.StorageKey, token), asset.ContentType);
+        return (!admin && media is IMediaUploadContext secured
+            ? await secured.OpenPublicAsync(asset.StorageKey, token) : await media.OpenAsync(asset.StorageKey, token), asset.ContentType);
     }
 
     private async Task<ProductView> View(Product p, bool publicOnly, CancellationToken token)
