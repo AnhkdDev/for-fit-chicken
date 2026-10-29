@@ -3,7 +3,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="3.7.511.8" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.33" />
+    <PackageReference Include="SkiaSharp" Version="4.154.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.154.0" />
     <ProjectReference Include="..\ForFitChicken.Application\ForFitChicken.Application.csproj" />
     <ProjectReference Include="..\ForFitChicken.Domain\ForFitChicken.Domain.csproj" />
   </ItemGroup>
