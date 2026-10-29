@@ -145,3 +145,88 @@ chưa nhận mật khẩu/token, chưa tạo Owner thật hoặc gửi Telegram 
   sau do chay test tren output da build. Khong khang dinh build solution nay 0 warnings.
 - Rasoat file versionable khong thay mau token Telegram; secrets local, artifacts va media runtime khong commit.
 - Nguoi dung yeu cau commit tat ca thanh nhieu commit theo nhom. Khong push remote trong luot nay.
+
+## 28/10/2026 — Cloudflare R2 adapter va huong dan cau hinh
+- Them AWSSDK.S3 pin 3.7.511.8 va R2MediaStorage trong Infrastructure; provider Local/R2 qua MediaOptions
+  ValidateOnStart. Khong thay Domain/API contract/schema. Appsettings van Local cho den khi nguoi dung nhap khoa.
+- R2 private bucket, endpoint S3 + explicit keys, region auto, path-style, tat chunk/payload-signing/default checksum
+  de tuong thich R2. Timeout/retry huu han; HTTP ngoai SQL transactions. Khong log raw SDK errors/credentials.
+- ConfiguredMediaStorage route doc/xoa theo key: r2/<guid>.<ext> cloud, key phang legacy Local.
+  Doi provider chi anh huong upload moi, khong migrate file; doi bucket can di chuyen object rieng.
+- Tach ValidatedImage chung: signature PNG/JPEG/WebP, 10 MiB. R2 GET bounded buffer va dispose response truoc tra file.
+  API van kiem tra public/draft, no-store; chua CDN/presign/resize. Khong fallback upload local khi R2 loi.
+- setup-r2.ps1 nhap hai khoa an va JSON stdin User Secrets; khong ghi repo/arguments/file tam;
+  giu Telegram/cac secrets khac. Chua chay script voi khoa that, chua tao bucket/cloud object.
+- Test factories/smoke ep Media Local, Telegram disabled de khong dung cloud/bot that tu User Secrets.
+- Kiem tra: setup-r2.ps1 parse OK; build output rieng thanh cong; 61/61 tests dat, 0 fail/skip voi SQL enabled
+  (56 cu + 5 R2 adapter tests). Test S3 gia, KHONG chung minh upload R2 that. Smoke HTTPS chua chay lai luot nay.
+- Test phat hien AmazonS3Exception khong bi catch boi AmazonClientException; da them catch AmazonServiceException
+  va xac nhan loi cloud thanh 503 MEDIA_STORAGE_UNAVAILABLE an toan; missing object 404 MEDIA_MISSING.
+- Huong dan docs/r2-storage-setup.md: tao private bucket, scoped Object Read & Write keys, script, restart va kiem tra
+  upload/read qua admin + public 404 khi chua published. Nguoi dung can cau hinh/kiem tra R2 that tiep theo.
+- Chua commit/push thay doi R2; frontend van chua bat dau. Du lieu don Telegram test cu khong thay doi.
+
+## 28/10/2026 — Nghiem thu R2 THAT sau khi nguoi dung cau hinh
+- Da doc log nguoi dung: API startup Development thanh cong; SQL NotificationJobs lap lai la worker poll, khong phai loi.
+- User Secrets da chon Media:Provider=R2, endpoint/bucket va hai khoa co gia tri; khong in/ghi credentials.
+- Cong cu artifacts/r2-live-check (Git ignored) doc User Secrets va goi production R2MediaStorage that:
+  upload PNG 1 pixel -> download byte-for-byte trung khop -> delete dung object GUID vua tao -> GET tra MEDIA_MISSING.
+  Tat ca thanh cong. Day la Cloudflare R2 THAT, khong phai fake S3.
+- Khong tao MediaAsset/du lieu SQL, khong gui Telegram. Object thu da xoa; khong dong den object khac.
+- Xac nhan ket noi va quyen upload/read/delete cua bucket. Chua test upload qua Swagger cookie/CSRF trong luot nay;
+  phan API/public-draft da co automated tests, se nghiem thu end-to-end khi upload anh san pham that.
+- Moi trang thai 'chua co config R2/chua upload cloud that' ben tren la lich su, checkpoint nay thay the.
+- Chua commit/push thay doi R2.
+
+## 28/10/2026 — Sua loi trung cong development
+- Nguoi dung gap IOException bind https://127.0.0.1:7010 address already in use.
+- Xac minh Get-NetTCPConnection: 7010/5195 ca IPv4/IPv6 do ForFitChicken.API PID 32688 giu;
+  executable dung API bin/Debug/net8.0 cua repo, parent dotnet PID 28728; health ban cu HTTP 200.
+- Nguyen nhan: khoi dong them API khi ban cu van chay, khong phai R2/DB/certificate.
+- Dung dung PID da kiem tra, chay lai profile https thanh cong tren 7010/5195, health HTTP 200.
+  Da Ctrl+C ban test de nhuong cong cho nguoi dung chay IDE/PowerShell. Khong doi port/code API, khong kill dotnet hang loat.
+- Them README huong dan chi chay mot instance, dong Swagger khong dung API. Chua commit.
+
+## Checkpoint hoàn thành 29/10/2026 — Media security + chuyển VPS
+
+- Đã thực hiện quyết định cuối: Owner VÀ Operator tiếp tục upload; input 5 MiB, decode/auto-orient/resize
+  1920x1920/WebP80 bằng SkiaSharp; private R2; quota tổng 9.000.000.000 byte không reset.
+- Nghiệp vụ ở Application/MediaPolicyService và CatalogService. Infrastructure giữ adapter/policy scope runner,
+  xử lý ảnh, cache và maintenance worker. HTTP ngoài SQL transaction; dùng business lock/UoW hiện có.
+- Migration mới 20261029012656_AddMediaGovernance đã áp vào DB development, giữ nguyên InitialSchema và dữ liệu.
+  3 bảng mới, tổng 32 bảng. SQL giữ reservation/unknown/counters qua restart/chuyển VPS. Không reset quota theo tháng.
+- Mỗi node R2 chặn upload tới khi scan thành công; sau đó scan mỗi 6h, retry mỗi 5 phút; snapshot >24h hoặc scan lỗi
+  fail closed toàn DB. Scope hash endpoint+bucket chặn đổi bucket âm thầm. List đủ bucket, quota tính cả object ngoài app.
+- Thêm counter ngày/user/bytes và A/B tháng, upload rate policy, active/concurrency limits, public RAM cache 64 MiB,
+  TTL 5 phút; public browser max-age60/Vary Cookie, authenticated no-store. SDK retry=0 để budget có kiểm soát.
+- API Owner: status/pause/reconcile, asset list + unused filter, delete unused sau grace và kiểm tra mọi reference,
+  orphan list/delete. Xóa cloud lỗi giữ quota và trả cleanupRequired, không xóa ảnh đang dùng/không tự dọn tất cả ảnh cũ.
+- Thêm DataProtection KeysPath/ApplicationName và explicit reverse-proxy trust. Deploy templates + runbook backup/restore,
+  secret env, migration account, Nginx/systemd/Linux-native. Chưa deploy VPS thực hoặc cấu hình WAF/Budget Alert/Cloudflare CDN.
+
+Kiểm chứng thực tế:
+- Debug build toàn solution đạt 0 warnings/errors. Test cuối **83 passed, 0 failed, 0 skipped** (SQL opt-in).
+  Test dùng database GUID disposable; không drop/reset DB development. Bao gồm cạnh tranh quota, unknown qua tháng,
+  lease fencing, daily/monthly budgets, cache, node startup/failure, metadata rollback/cleanup, referenced asset protection,
+  HTTP Owner+Operator/CSRF/private image, corrupt PNG, EXIF orientation và WebP.
+- Smoke HTTPS **14/14** đạt; có upload WebP thật, auth/cookie/CSRF và nghiệp vụ order/kho/gym, Local media/Telegram off,
+  GUID DB đã cleanup; báo cáo docs/smoke-test-report.md. Đã sửa PNG fixture có signature nhưng raster hỏng.
+- Cloud R2 THẬT: đối soát 318105 byte -> upload guarded WebP 70 byte -> đọc/cache -> delete object thử ->
+  charged trở lại 318105, uncertain=0. Không tạo MediaAsset/product/order, không gửi Telegram. Ledger/counter lưu lịch sử.
+- API Debug mới đã khởi động HTTPS 7010/HTTP5195, health200, worker startup scan cập nhật baseline. HTTP admin request
+  chưa auth trả307 chuyển HTTPS (không nhầm307 với401); role/auth bảo vệ đã kiểm tra qua HTTP test HTTPS.
+  API kiểm tra đã Ctrl+C để nhường cổng cho người dùng. Lần chạy mới có thể cần login/CSRF lại do ApplicationName cố định.
+- OpenAPI mới xuất từ API thật: **50 paths/61 operations**, không test probes. NuGet audit sau update xUnit2.9.3:
+  cả 5 project không có vulnerable packages theo nguồn hiện tại. Linux native đã đưa vào dependency, chưa chạy VPS Linux thật.
+- Không commit/push. Handoff hiện đã viết lại theo trạng thái mới để tránh đọc các append lịch sử như quyết định hiện hành.
+
+Tài liệu tiếp nối: docs/media-security.md, media-security-progress.md, vps-maintenance-runbook.md,
+API contract/OpenAPI và deploy/*.example. Frontend vẫn chưa bắt đầu. Không in User Secrets/khóa vào chat.
+
+## Git checkpoint 29/10/2026 — trước frontend
+Người dùng yêu cầu commit toàn bộ R2/media security. Đã rà soát secrets và whitespace; cấu hình thật,
+artifacts, media/runtime không đưa vào Git. Lưu theo nhiều commit feat/fix/test/docs/update với phạm vi rõ ràng,
+không push remote. Trạng thái kiểm chứng giữ nguyên: 83 tests SQL-enabled + 14 HTTPS smoke đã đạt,
+R2 live roundtrip đã đạt; không chạy lại cloud/ghi dữ liệu chỉ để commit.
+Bước tiếp theo: nền frontend React TypeScript/Vite + API client cookie/CSRF + Owner/Operator login/admin/logout,
+đọc lại source frontend/reference và cập nhật frontend docs trước khi triển khai. Linux VPS/WAF/Budget Alert chưa deploy.
