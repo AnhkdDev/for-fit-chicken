@@ -12,6 +12,7 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        builder.Services.AddDeploymentConfiguration(builder.Configuration);
 
         builder.Services.AddControllers(options => options.Filters.Add<ApiAntiforgeryFilter>())
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(allowIntegerValues: false)));
@@ -29,6 +30,16 @@ public class Program
 
         await using var app = builder.Build();
 
+        if (args.Contains("--reconcile-media", StringComparer.Ordinal))
+        {
+            using var scope = app.Services.CreateScope();
+            try {
+                var status = await scope.ServiceProvider.GetRequiredService<ForFitChicken.Application.Commerce.IMediaMaintenance>().ReconcileAsync(CancellationToken.None);
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(status));
+            } catch { Console.Error.WriteLine("Media reconciliation failed. Check configuration/database/network; secrets not printed."); Environment.ExitCode = 1; }
+            return;
+        }
+
         if (args.Contains("--bootstrap-owner", StringComparer.Ordinal))
         {
             await BootstrapOwnerAsync(app);
@@ -45,6 +56,8 @@ public class Program
             app.UseSwaggerUI();
         }
 
+        if (builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>()?.Length > 0)
+            app.UseForwardedHeaders();
         app.UseHttpsRedirection();
         app.UseRouting();
         app.UseAuthentication();

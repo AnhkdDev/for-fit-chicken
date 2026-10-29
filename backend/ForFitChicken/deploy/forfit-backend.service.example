@@ -1,0 +1,27 @@
+[Unit]
+Description=ForFitChicken API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=forfit
+Group=forfit
+WorkingDirectory=/opt/forfit/current
+EnvironmentFile=/etc/forfit/backend.env
+ExecStart=/usr/bin/dotnet /opt/forfit/current/ForFitChicken.API.dll
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/forfit
+MemoryMax=1G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target

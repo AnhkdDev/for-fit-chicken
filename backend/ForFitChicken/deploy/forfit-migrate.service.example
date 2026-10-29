@@ -1,0 +1,15 @@
+[Unit]
+Description=ForFitChicken forward-only database migration bundle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=forfit
+Group=forfit
+WorkingDirectory=/opt/forfit/current
+EnvironmentFile=/etc/forfit/migration.env
+ExecStart=/opt/forfit/current/efbundle
+UMask=0077
+NoNewPrivileges=true
+# Migration SQL principal needs schema permissions; runtime should use a separate least-privilege principal.

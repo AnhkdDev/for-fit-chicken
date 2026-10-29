@@ -1,0 +1,18 @@
+# Template fragment only: replace server_name and use your TLS certificate configuration.
+# If behind Cloudflare, configure real_ip ONLY for official current Cloudflare IP ranges first.
+server {
+    listen 443 ssl;
+    server_name REPLACE_DOMAIN;
+    # ssl_certificate /path/to/fullchain.pem;
+    # ssl_certificate_key /path/to/privkey.pem;
+    client_max_body_size 6m;
+    location / {
+        proxy_pass http://127.0.0.1:5195;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Overwrite untrusted client input. $remote_addr must be verified by real_ip if using Cloudflare.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_read_timeout 180s;
+        # Do not enable shared proxy caching for all API routes.
+    }
+}
