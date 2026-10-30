@@ -35,19 +35,15 @@ public sealed class GovernedMediaStorage(ConfiguredMediaStorage raw, R2MediaStor
             return new(key, "image/webp", optimized.Length);
         } finally { gates.Uploads.Release(); }
     }
-    public async Task<Stream> OpenAsync(string key, CancellationToken token)
-    {
-        if (!await gates.Reads.WaitAsync(0, token)) throw Busy();
-        try { return new MemoryStream(await Fetch(key, token), writable: false); }
-        finally { gates.Reads.Release(); }
-    }
+    // Catalog authorizes the asset before either method; cached bytes never bypass that check.
+    public Task<Stream> OpenAsync(string key, CancellationToken token) => OpenPublicAsync(key, token);
     public async Task<Stream> OpenPublicAsync(string key, CancellationToken token)
     {
-        if (!await gates.Reads.WaitAsync(0, token)) throw Busy();
-        try {
-            var bytes = await gates.PublicBytesAsync(CacheKey(key), () => Fetch(key, token), token);
-            return new MemoryStream(bytes, writable: false);
-        } finally { gates.Reads.Release(); }
+        var bytes = await gates.PublicBytesAsync(CacheKey(key), async () => {
+            if (!await gates.Reads.WaitAsync(TimeSpan.FromSeconds(5), token)) throw Busy();
+            try { return await Fetch(key, token); } finally { gates.Reads.Release(); }
+        }, token);
+        return new MemoryStream(bytes, writable: false);
     }
     private async Task<byte[]> Fetch(string key, CancellationToken token)
     {

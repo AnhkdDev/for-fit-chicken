@@ -109,10 +109,12 @@ public sealed class GovernedMediaTests
             await using var stream = await p.GetRequiredService<GovernedMediaStorage>().OpenPublicAsync(key, default);
             Assert.True(stream.Length > 0); return true;
         });
-        await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => ReadPublic()));
+        await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => ReadPublic()));
         Assert.Equal(1, s.Cloud.Gets); Assert.Equal(1, (await s.Status()).ClassBThisMonth);
+        await s.Run(async p => { await using var cached=await p.GetRequiredService<IMediaStorage>().OpenAsync(key,default); return true; });
+        Assert.Equal(1,s.Cloud.Gets);
         Assert.Equal("MEDIA_OPERATION_BUDGET", (await Assert.ThrowsAsync<BusinessException>(() => s.Run(async p => {
-            await using var stream = await p.GetRequiredService<IMediaStorage>().OpenAsync(key, default); return true;
+            await using var stream = await p.GetRequiredService<IMediaStorage>().OpenAsync(key+"-uncached", default); return true;
         }))).Code);
     }
     [SqlServerFact]
