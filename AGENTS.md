@@ -28,3 +28,12 @@ so a new session can continue without the original chat history.
   later Visual Studio/dotnet run does not collide on 7010/5195. Verify process ownership before stopping.
 
 Build/test commands and setup are in `backend/ForFitChicken/README.md` and `docs/HANDOFF.md`.
+
+Frontend notes:
+- Read docs/frontend-progress.md, frontend-architecture.md and frontend-api-integration.md before UI work.
+- Real app is frontend/ (React/TypeScript/Vite), reference code is ignored and only a layout reference.
+- Keep responsive/mobile behavior and reduced-motion support. Never put backend secrets in VITE_* or browser code.
+- HTTPS frontend 5173 proxies /api to backend 7010; keep Secure cookies and CSRF. .certs is private and ignored.
+- UI fixtures use explicit dev:fixtures mode on 5174 with a visible watermark, intercept all API calls and must
+  never reach SQL/R2/Telegram. Fixture UI success does not prove live backend integration.
+- Current UI does not cover all admin APIs; maintain the remaining-work checklist in frontend-progress.md.

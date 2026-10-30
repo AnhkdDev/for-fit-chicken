@@ -34,3 +34,17 @@
 
 # Local build verification output
 /backend/ForFitChicken/artifacts/
+
+# Local frontend TLS keys
+/frontend/.certs/
+/frontend/artifacts/
+**/*.tsbuildinfo
+# Private deployment material and local design previews
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.p12
+**/appsettings.Production.json
+/deploy/**/production.env
+/docs/frontend-previews/
+/docs/brand-concepts/
