@@ -1,0 +1,28 @@
+{
+  "name": "forfit-chicken-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host localhost",
+    "dev:fixtures": "vite --host localhost --port 5174 --mode ui-fixtures",
+    "build": "tsc -b && vite build",
+    "test": "node --test tests/cart.test.ts tests/admin-forms.test.ts tests/home-display.test.ts tests/problem.test.ts tests/admin-permissions.test.ts",
+    "preview": "vite preview --host localhost"
+  },
+  "dependencies": {
+    "lucide-react": "1.63.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}
