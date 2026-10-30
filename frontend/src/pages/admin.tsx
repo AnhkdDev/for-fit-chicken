@@ -2,7 +2,7 @@ import { canOpenAdminArea } from '../lib/admin-permissions';
 import { Employees } from './admin-employees';
 import { DeleteRecord } from '../components/DeleteRecord';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import {
   ArrowUpRight,
   BarChart3,
@@ -148,8 +148,8 @@ export function Admin() {
           <main className="admin-main">
             {error && <ErrorBox text={error} />}
             <Routes>
-              <Route index element={owner ? <Dashboard /> : <Navigate replace to="san-pham" />} />
-              <Route path="don-hang" element={owner ? <Orders /> : <Denied />} />
+              <Route index element={<Dashboard />} />
+              <Route path="don-hang" element={<Orders />} />
               <Route path="san-pham" element={<Catalog />} />
               <Route path="san-pham/tao-moi" element={<ProductWorkspace key="new" />} />
               <Route path="san-pham/:id" element={<ProductWorkspace />} />
@@ -159,8 +159,8 @@ export function Admin() {
               <Route path="noi-dung" element={owner ? <ContentWorkspace /> : <Denied />} />
               <Route path="thu-vien" element={owner ? <Media /> : <Denied />} />
               <Route path="nhan-vien" element={owner ? <Employees /> : <Denied />} />
-              <Route path="bao-cao" element={owner ? <Reports /> : <Denied />} />
-              <Route path="thong-bao" element={owner ? <Notifications /> : <Denied />} />
+              <Route path="bao-cao" element={<Reports />} />
+              <Route path="thong-bao" element={<Notifications />} />
               <Route
                 path="*"
                 element={
@@ -361,7 +361,7 @@ function Dashboard() {
 }
 function Orders() {
   const [create, setCreate] = useState(false);
-  const owner = useOwner();
+
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState(
     new URLSearchParams(window.location.search).get('status') ?? '',
@@ -501,7 +501,7 @@ function Orders() {
       {selected && (
         <OrderDialog
           id={selected.id}
-          owner={owner}
+          canManageReceipts={true}
           close={() => {
             setSelected(undefined);
             r.reload();
@@ -528,7 +528,7 @@ const orderLabels: Record<string, string> = {
   Completed: 'Hoàn tất',
   Cancelled: 'Đã hủy',
 };
-function OrderDialog({ id, owner, close }: { id: number; owner: boolean; close: () => void }) {
+function OrderDialog({ id, canManageReceipts, close }: { id: number; canManageReceipts: boolean; close: () => void }) {
   const [editing, setEditing] = useState(false);
   const r = useResource<Order>(`/admin/orders/${id}`);
   const events = useResource<
@@ -542,7 +542,7 @@ function OrderDialog({ id, owner, close }: { id: number; owner: boolean; close: 
   const o = r.data;
   const receipts = useResource<
     { id: number; amount: number; receivedAtUtc: string; voidedAtUtc?: string }[]
-  >(owner ? `/admin/orders/${id}/receipts` : `/admin/orders/${id}/events`);
+  >(canManageReceipts ? `/admin/orders/${id}/receipts` : `/admin/orders/${id}/events`);
   async function execute(e: FormEvent) {
     e.preventDefault();
     if (!o) return;
@@ -672,7 +672,7 @@ function OrderDialog({ id, owner, close }: { id: number; owner: boolean; close: 
                   {label}
                 </button>
               ))}
-              {owner &&
+              {canManageReceipts &&
                 ['HandedOver', 'Completed'].includes(o.status) &&
                 !receipts.data?.some((x) => !x.voidedAtUtc) && (
                   <button
@@ -718,7 +718,7 @@ function OrderDialog({ id, owner, close }: { id: number; owner: boolean; close: 
                 </div>
               </form>
             )}
-            {owner && (
+            {canManageReceipts && (
               <div className="receipt-history">
                 <h4>Tiền COD đã ghi nhận</h4>
                 {receipts.error ? (
@@ -1476,3 +1476,5 @@ function Notifications() {
     </>
   );
 }
+
+
