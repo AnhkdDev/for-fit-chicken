@@ -1,0 +1,12 @@
+# Run from repository root: docker build -f deploy/phase1/Dockerfile.api .
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY backend/ForFitChicken/ ./
+RUN dotnet publish ForFitChicken.API/ForFitChicken.API.csproj -c Release -r linux-x64 --self-contained false -o /out
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+RUN mkdir -p /var/lib/forfit/keys /var/lib/forfit/media-local && chown -R app:app /var/lib/forfit
+COPY --from=build /out ./
+ENV ASPNETCORE_ENVIRONMENT=Production ASPNETCORE_URLS=http://0.0.0.0:8080
+USER app
+ENTRYPOINT ["dotnet", "ForFitChicken.API.dll"]
