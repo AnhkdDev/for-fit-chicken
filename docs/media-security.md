@@ -120,3 +120,10 @@ Chỉ pause app không ngăn được người đã có khóa. Không coi paymen
 Nguồn: [R2 pricing](https://developers.cloudflare.com/r2/pricing/),
 [Budget alerts](https://developers.cloudflare.com/billing/manage/budget-alerts/),
 [SkiaSharp MIT](https://github.com/mono/SkiaSharp).
+
+## Tối ưu tải ảnh và bỏ banner mẫu — 29/10
+- Home chỉ render banner từ HomeHero đã cấu hình; chờ API dùng nền trung tính, không flash reference-asin-hero.webp. Asset tham khảo còn được dùng trong fixtures riêng, không là fallback live.
+- ProductImage cho ảnh chính sản phẩm: trạng thái tải/lỗi và nút thử lại thủ công; không retry tự động hoặc thêm query phá cache. Nút phóng to riêng giữ gallery hoạt động.
+- Media cache dùng chung cho lượt đọc public/admin SAU kiểm tra quyền của Catalog. HTTP ảnh private vẫn no-store. Cache RAM64MiB/5phút, coalesce cùng key, các key khác tải song song; tối đa4 lượt fetch thực, chờ slot tối đa5giây, tối đa24 requests cache-miss đang chờ. Cache hit không giữ slot cloud. Quota9GB và operation budget không đổi, không bypass reservation.
+- Kiểm chứng: build frontend đạt;9/9 GovernedMediaTests + MediaCacheConcurrencyTests SQL-enabled đạt trên DB GUID disposable, fake cloud adapter. Live public page5173 quan sát2 ảnh chính loaded=true, console không warn/error ở lần xem; screenshot frontend-previews/product-image-loading-fix.jpg. Chưa đo benchmark R2 hoặc xác định HTTP status của lỗi ảnh ban đầu. Backend đang chạy của người dùng chưa restart nên chưa chứng minh cache mới trên live API.
+- Cần rebuild/restart backend để nhận cache mới; không migration. Không tạo đơn/upload/xóa dữ liệu thật, không đổi secrets; không khởi động test listener, không dừng server người dùng. Chưa commit/push.

@@ -280,3 +280,16 @@ Frontend React thật, triển khai hosting/domain, dữ liệu/ảnh thương h
 quản lý tài khoản Operator/reset password, refund/trả hàng, giao từng phần, nguyên liệu/công thức,
 bank QR/hoa hồng gym/chi phí kế toán, shipping fee/API giao hàng, rich CMS, object storage/CDN và backup production.
 Không gọi backend này là hệ thống kế toán hoàn chỉnh hoặc đã sẵn sàng production chỉ từ kết quả test.
+
+## Tìm kiếm/lọc admin 29/10
+Catalog UI mặc định status=active, lựa chọn inactive hoặc tất cả. Search tên/slug/SKU. Kho mặc định tab lô với status=active nghĩa chưa khóa bán và chưa hết hạn, không hứa còn số lượng tồn. Có blocked/expired/tất cả; search mã lô/SKU/tên sản phẩm. Submit search và đổi status reset page1.
+GET admin/products và admin/inventory/batches thêm search/status, lọc SQL trước count/pagination. Không truyền status giữ tương thích các picker/admin khác cần toàn bộ dữ liệu; public API không đổi. Không thêm migration hoặc sửa/xóa DB thật.
+Build frontend đạt;18 CommerceTests cũ và1 SQL test mới search/filter đạt trên DB GUID disposable. Chưa nghiệm thu browser/live auth lượt này. Rebuild/restart API để nhận query mới; chưa commit/push.
+
+## Employee API checkpoint29/10 (đã kiểm chứng)
+Owner-only /api/admin/employees: list/get/create/edit/status/reset password; Application service + Identity adapter, UoW/SQL lock/audit, chỉ Operator, không quản lý Owner. DTO không hash/stamp/password. Không migration/default account; chưa giao diện quản lý nhân viên. Đọc employees-api.md. Không tạo dữ liệu thật, chưa commit/push.
+
+Employee API kiểm chứng: build đạt,14/14 AdminAuthTests SQL-enabled đạt trên database GUID disposable. Test mới kiểm tra anonymous401/Operator403/CSRF, tạo fixed Operator, duplicate/weak-password, lọc/list không Identity secrets, Owner target404, stale409, sửa tên, khóa/mở và reset password thu hồi cookie cũ. Bổ sung sửa tên và password đủ dài nhưng yếu đã chạy lại test mới đạt. Không tạo dữ liệu kinh doanh thật, không khởi động API listener; factory đã dispose. Chưa UI, chưa live UAT, chưa commit/push; rebuild/restart backend, không cần migration mới.
+
+## Operator scope — backend29/10
+Chốt Operator được nhập/xuất và giao/kiểm đếm Regular gym. Backend orders/content chuyển Owner; gym resolutions Owner; Operator không đổi publish/featured/ẩn product đã publish. FallbackOwner; kiểm tra quyền Adjustment/correction trước replay. Đọc operator-permissions.md là ma trận hiện hành, thay quyền Staff cũ trong tài liệu lịch sử. FRONTEND CHƯA THU GỌN: cần menu/redirect/hide actions riêng ở lượt sau. Không migration/DB thật, chưa commit/push.

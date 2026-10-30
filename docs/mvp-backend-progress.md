@@ -230,3 +230,38 @@ không push remote. Trạng thái kiểm chứng giữ nguyên: 83 tests SQL-ena
 R2 live roundtrip đã đạt; không chạy lại cloud/ghi dữ liệu chỉ để commit.
 Bước tiếp theo: nền frontend React TypeScript/Vite + API client cookie/CSRF + Owner/Operator login/admin/logout,
 đọc lại source frontend/reference và cập nhật frontend docs trước khi triển khai. Linux VPS/WAF/Budget Alert chưa deploy.
+
+### Frontend admin checkpoint 29/10/2026
+Admin UI được thiết kế lại theo tác vụ, có SKU edit/manual order/recipient pending/CMS image picker. Không đổi backend/migration/quota/quyền và không chạy business writes thật lượt này. Build +7 frontend tests và browser fixtures đạt; chi tiết docs/admin-workflows.md, frontend-progress.md. Nghiệm thu auth/ghi thật bằng Owner tự đăng nhập vẫn cần thực hiện riêng.
+
+
+## HomeProducts checkpoint 29/10/2026
+Admin trưng bày trang chủ + khối sản phẩm lớn/gallery/QuickBuy trước câu chuyện; lưu nháp/preview/công bố Owner. Đọc docs/home-display.md (từ docs: home-display.md). Frontend build +9 tests và16 SQL CommerceTests đạt trên DB disposable. Migration AddHomeProductsSection mới CHƯA áp dụng DB kinh doanh; cần Stop Debug, build, dotnet ef database update rồi chạy lại API. Không commit/push, không đổi quota/secrets.
+
+### Home rút gọn + carousel + ảnh chính + xóa 29/10
+Thân Home còn banner/sản phẩm/câu chuyện. HomeHero nhiều slide; Trưng bày chọn ảnh chính từng sản phẩm qua productMainImages. Owner xóa product/batch chưa dùng, chặn lịch sử/config references; không xóa tệp R2. Đọc home-display.md để biết contract và hướng dẫn. Build +10 frontend tests +18 SQL CommerceTests disposable đạt, browser fixtures đạt; DB kinh doanh không bị sửa/xóa. Cần rebuild/restart API đang chạy, migrationHomeProducts trước đó nếu chưa áp dụng; chưa commit/push.
+
+## Tìm kiếm/lọc admin 29/10
+Catalog UI mặc định status=active, lựa chọn inactive hoặc tất cả. Search tên/slug/SKU. Kho mặc định tab lô với status=active nghĩa chưa khóa bán và chưa hết hạn, không hứa còn số lượng tồn. Có blocked/expired/tất cả; search mã lô/SKU/tên sản phẩm. Submit search và đổi status reset page1.
+GET admin/products và admin/inventory/batches thêm search/status, lọc SQL trước count/pagination. Không truyền status giữ tương thích các picker/admin khác cần toàn bộ dữ liệu; public API không đổi. Không thêm migration hoặc sửa/xóa DB thật.
+Build frontend đạt;18 CommerceTests cũ và1 SQL test mới search/filter đạt trên DB GUID disposable. Chưa nghiệm thu browser/live auth lượt này. Rebuild/restart API để nhận query mới; chưa commit/push.
+
+## Employee API checkpoint29/10 (đã kiểm chứng)
+Owner-only /api/admin/employees: list/get/create/edit/status/reset password; Application service + Identity adapter, UoW/SQL lock/audit, chỉ Operator, không quản lý Owner. DTO không hash/stamp/password. Không migration/default account; chưa giao diện quản lý nhân viên. Đọc employees-api.md. Không tạo dữ liệu thật, chưa commit/push.
+
+Employee API kiểm chứng: build đạt,14/14 AdminAuthTests SQL-enabled đạt trên database GUID disposable. Test mới kiểm tra anonymous401/Operator403/CSRF, tạo fixed Operator, duplicate/weak-password, lọc/list không Identity secrets, Owner target404, stale409, sửa tên, khóa/mở và reset password thu hồi cookie cũ. Bổ sung sửa tên và password đủ dài nhưng yếu đã chạy lại test mới đạt. Không tạo dữ liệu kinh doanh thật, không khởi động API listener; factory đã dispose. Chưa UI, chưa live UAT, chưa commit/push; rebuild/restart backend, không cần migration mới.
+
+## Operator scope — backend29/10
+Chốt Operator được nhập/xuất và giao/kiểm đếm Regular gym. Backend orders/content chuyển Owner; gym resolutions Owner; Operator không đổi publish/featured/ẩn product đã publish. FallbackOwner; kiểm tra quyền Adjustment/correction trước replay. Đọc operator-permissions.md là ma trận hiện hành, thay quyền Staff cũ trong tài liệu lịch sử. FRONTEND CHƯA THU GỌN: cần menu/redirect/hide actions riêng ở lượt sau. Không migration/DB thật, chưa commit/push.
+
+Kết quả chốt29/10:34/34 tests AdminAuthTests + CommerceTests SQL-enabled đạt (bao gồm ma trận quyền mới). Factory HTTPS in-memory đã dispose, không có API test listener để dừng; không dừng Visual Studio của người dùng. Không live UAT/tạo account thật/xóa DB, không đổi frontend lượt này. Chưa commit/push.
+
+## Tối ưu tải ảnh và bỏ banner mẫu — 29/10
+- Home chỉ render banner từ HomeHero đã cấu hình; chờ API dùng nền trung tính, không flash reference-asin-hero.webp. Asset tham khảo còn được dùng trong fixtures riêng, không là fallback live.
+- ProductImage cho ảnh chính sản phẩm: trạng thái tải/lỗi và nút thử lại thủ công; không retry tự động hoặc thêm query phá cache. Nút phóng to riêng giữ gallery hoạt động.
+- Media cache dùng chung cho lượt đọc public/admin SAU kiểm tra quyền của Catalog. HTTP ảnh private vẫn no-store. Cache RAM64MiB/5phút, coalesce cùng key, các key khác tải song song; tối đa4 lượt fetch thực, chờ slot tối đa5giây, tối đa24 requests cache-miss đang chờ. Cache hit không giữ slot cloud. Quota9GB và operation budget không đổi, không bypass reservation.
+- Kiểm chứng: build frontend đạt;9/9 GovernedMediaTests + MediaCacheConcurrencyTests SQL-enabled đạt trên DB GUID disposable, fake cloud adapter. Live public page5173 quan sát2 ảnh chính loaded=true, console không warn/error ở lần xem; screenshot frontend-previews/product-image-loading-fix.jpg. Chưa đo benchmark R2 hoặc xác định HTTP status của lỗi ảnh ban đầu. Backend đang chạy của người dùng chưa restart nên chưa chứng minh cache mới trên live API.
+- Cần rebuild/restart backend để nhận cache mới; không migration. Không tạo đơn/upload/xóa dữ liệu thật, không đổi secrets; không khởi động test listener, không dừng server người dùng. Chưa commit/push.
+
+## Phase1 review —30/10/2026
+Read docs/phase1-production-readiness.md. Frontend14tests/build pass, npm audit0; backend90/90 SQL-enabled pass on disposable DB; NuGet no vulnerable packages at scan. Fixed stale schema test expected2 -> explicit3 migration IDs, no migrations changed. Draft Dockerfiles/Compose/nginx/.dockerignore added, not built: local Docker engine unavailable. NOT public-production approved yet: awaiting Bitvise read-only VPS inventory, SQL/TLS/backup/migration/media reconciliation/Linux/native tests and live smoke. No SSH/VPS modifications or secrets saved, no commit/push. User no domain, wants IP first; retain HTTPS/Secure/CSRF, private test certificate only until trusted TLS ready. Existing projects must remain isolated; no global Docker restart/prune or public SQL ports.
