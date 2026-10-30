@@ -14,7 +14,11 @@ public sealed class SchemaTests(MigratedDatabaseFixture fixture) : IClassFixture
     public async Task Migration_CreatesCoreAndIdentityTables_WithoutOptionalExpenses()
     {
         await using var db = fixture.Context();
-        Assert.Equal(2, (await db.Database.GetAppliedMigrationsAsync()).Count());
+        Assert.Equal(new[] {
+            "20261026181658_InitialSchema",
+            "20261029012656_AddMediaGovernance",
+            "20261029080000_AddHomeProductsSection"
+        }, await db.Database.GetAppliedMigrationsAsync());
         var tableCount = await db.Database.SqlQueryRaw<int>(
             "SELECT COUNT(*) AS [Value] FROM sys.tables WHERE [name] <> '__EFMigrationsHistory'").SingleAsync();
         Assert.Equal(32, tableCount);

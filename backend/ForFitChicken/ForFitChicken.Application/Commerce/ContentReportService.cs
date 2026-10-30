@@ -7,7 +7,16 @@ namespace ForFitChicken.Application.Commerce;
 
 public sealed class ContentReportService(ICommerceStore store, IUnitOfWork unit, TimeProvider clock) : BusinessService(store, unit, clock)
 {
-    private static readonly string[] Keys = ["HomeHero", "Story", "Usage", "Faq", "Contact", "SiteSettings"];
+    private static readonly string[] Keys = ["HomeProducts", "HomeHero", "Story", "Usage", "Faq", "Contact", "SiteSettings"];
+    private async Task ValidateProducts(SiteSectionInput input, CancellationToken token)
+    {
+        var ids = input.ProductIds ?? [];
+        Check(ids.Length <= 50 && ids.All(x => x > 0) && ids.Distinct().Count() == ids.Length, "INVALID_PRODUCTS", "Tối đa 50 sản phẩm, ID hợp lệ và không trùng.", 400);
+        foreach(var choice in input.ProductMainImages ?? new Dictionary<long,long>()) {
+            Check(ids.Contains(choice.Key) && await Store.AnyAsync(Store.Query<ProductImage>().Where(x => x.ProductId == choice.Key && x.AssetId == choice.Value), token), "INVALID_PRODUCT_IMAGE", "Ảnh chính phải thuộc sản phẩm được chọn.", 400);
+        }
+        foreach(var id in ids) { var product = await Need<Product>(id, token); Check(product.IsActive && product.IsPublished, "PRODUCT_UNAVAILABLE", "Chỉ chọn sản phẩm hoạt động và đã công bố.", 400); }
+    }
     public async Task<SectionView[]> ContentAsync(bool publicOnly, CancellationToken token) =>
         (await Store.ListAsync(Store.Query<SiteContent>().Where(x => !publicOnly || x.PublishedJson != null).OrderBy(x => x.SectionKey), token))
         .Select(x => new SectionView(x.SectionKey, JsonSerializer.Deserialize<SiteSectionInput>(publicOnly ? x.PublishedJson! : x.DraftJson)!, x.PublishedAtUtc, publicOnly ? null : Revision(x.Version))).ToArray();
@@ -18,6 +27,7 @@ public sealed class ContentReportService(ICommerceStore store, IUnitOfWork unit,
         Check(input.AssetIds is not null && input.AssetIds.Length <= 20 && input.AssetIds.Distinct().Count() == input.AssetIds.Length, "INVALID_ASSETS", "Tối đa 20 ảnh, không trùng.", 400);
         Check(input.LinkUrl is null || (input.LinkUrl.StartsWith('/') && !input.LinkUrl.StartsWith("//") && !input.LinkUrl.Contains('\\')) ||
             (Uri.TryCreate(input.LinkUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps), "INVALID_LINK", "Chỉ chấp nhận đường dẫn nội bộ hoặc HTTPS.", 400);
+        if(key == "HomeProducts") await ValidateProducts(input, token);
         foreach (var id in input.AssetIds!) await Need<MediaAsset>(id, token);
         var section = (await Store.ListAsync(Store.Query<SiteContent>().Where(x => x.SectionKey == key), token)).SingleOrDefault();
         if (section is null) { section = new SiteContent { SectionKey = key, SchemaVersion = 1 }; Store.Add(section); }
@@ -32,6 +42,7 @@ public sealed class ContentReportService(ICommerceStore store, IUnitOfWork unit,
         var section = (await Store.ListAsync(Store.Query<SiteContent>().Where(x => x.SectionKey == key), token)).SingleOrDefault()
             ?? throw new BusinessException(404, "NOT_FOUND", "Chưa có bản nháp.");
         Version(section.Version, version); var content = JsonSerializer.Deserialize<SiteSectionInput>(section.DraftJson)!;
+        if(key == "HomeProducts") await ValidateProducts(content, token);
         foreach (var asset in content.AssetIds) await Need<MediaAsset>(asset, token);
         section.PublishedJson = section.DraftJson; section.PublishedAtUtc = Now; section.PublishedByUserId = actor; section.UpdatedAtUtc = Now;
         await Unit.SaveChangesAsync(token); Audit(actor, "SitePublished", nameof(SiteContent), section.Id);

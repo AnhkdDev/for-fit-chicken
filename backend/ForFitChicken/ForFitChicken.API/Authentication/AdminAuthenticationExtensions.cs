@@ -42,7 +42,7 @@ public static class AdminAuthenticationExtensions
             options.AddPolicy(AdminPolicies.Owner, policy => policy.RequireAuthenticatedUser().RequireRole(AdminRoles.Owner));
             // Business controllers are private unless explicitly marked AllowAnonymous.
             options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser().RequireRole(AdminRoles.Owner, AdminRoles.Operator).Build();
+                .RequireAuthenticatedUser().RequireRole(AdminRoles.Owner).Build();
         });
         services.AddAntiforgery(options =>
         {

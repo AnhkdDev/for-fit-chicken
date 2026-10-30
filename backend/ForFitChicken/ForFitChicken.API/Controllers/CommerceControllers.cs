@@ -73,13 +73,15 @@ public sealed class MediaController(CatalogService catalog) : StaffController
 public sealed class AdminCatalogController(CatalogService catalog) : StaffController
 {
     [HttpGet]
-    public Task<Page<ProductView>> List(int page = 1, int size = 20, CancellationToken token = default) => catalog.ListAsync(false, page, size, token);
+    public Task<Page<ProductView>> List(int page = 1, int size = 20, CancellationToken token = default, string? search = null, string? status = null) => catalog.ListAsync(false, page, size, token, search, status);
     [HttpGet("{id:long}")]
     public Task<ProductView> Get(long id, CancellationToken token) => catalog.GetAsync(id, false, token);
     [HttpPost]
-    public Task<ProductView> Create(ProductInput input, CancellationToken token) => catalog.SaveAsync(null, input, Actor, token);
+    public Task<ProductView> Create(ProductInput input, CancellationToken token) => catalog.SaveAsync(null, input, Actor, token, Owner);
     [HttpPut("{id:long}")]
-    public Task<ProductView> Update(long id, ProductInput input, CancellationToken token) => catalog.SaveAsync(id, input, Actor, token);
+    public Task<ProductView> Update(long id, ProductInput input, CancellationToken token) => catalog.SaveAsync(id, input, Actor, token, Owner);
+    [HttpDelete("{id:long}"), Authorize(Policy = AdminPolicies.Owner)]
+    public Task<bool> Delete(long id, VersionInput input, CancellationToken token) => catalog.DeleteAsync(id, input.Version, Actor, token);
     [HttpPost("{id:long}/variants")]
     public Task<VariantView> CreateVariant(long id, VariantInput input, CancellationToken token) => catalog.SaveVariantAsync(id, null, input, Actor, token);
     [HttpPut("{id:long}/variants/{variantId:long}")]
@@ -99,9 +101,11 @@ public sealed class AdminInventoryController(InventoryService inventory) : Staff
     [HttpGet("locations")]
     public Task<LocationView[]> Locations(CancellationToken token) => inventory.LocationsAsync(token);
     [HttpGet("batches")]
-    public Task<Page<BatchView>> Batches(int page = 1, int size = 20, CancellationToken token = default) => inventory.BatchesAsync(page, size, token);
+    public Task<Page<BatchView>> Batches(int page = 1, int size = 20, CancellationToken token = default, string? search = null, string? status = null) => inventory.BatchesAsync(page, size, token, search, status);
     [HttpPost("batches")]
     public Task<BatchView> CreateBatch(BatchInput input, CancellationToken token) => inventory.CreateBatchAsync(input, Actor, token);
+    [HttpDelete("batches/{id:long}"), Authorize(Policy = AdminPolicies.Owner)]
+    public Task<bool> DeleteBatch(long id, VersionInput input, CancellationToken token) => inventory.DeleteBatchAsync(id, input.Version, Actor, token);
     [HttpPut("batches/{id:long}/block")]
     public Task<BatchView> Block(long id, BlockBatchInput input, CancellationToken token) => inventory.BlockAsync(id, input, Actor, token);
     [HttpPut("batches/{id:long}/cost"), Authorize(Policy = AdminPolicies.Owner)]
@@ -116,7 +120,7 @@ public sealed class AdminInventoryController(InventoryService inventory) : Staff
     public Task<DocumentView> Post(MovementInput input, CancellationToken token) => inventory.PostAsync(input, Actor, Owner, token);
 }
 
-[ApiController, Route("api/admin/orders"), Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Admin)]
+[ApiController, Route("api/admin/orders"), Authorize(Policy = AdminPolicies.Owner), EnableRateLimiting(RateLimitPolicies.Admin)]
 public sealed class AdminOrdersController(OrderService orders) : StaffController
 {
     [HttpPost]
@@ -157,15 +161,15 @@ public sealed class AdminGymsController(GymService gyms) : StaffController
     public Task<Page<CountView>> Counts(long id, int page = 1, int size = 20, CancellationToken token = default) => gyms.CountsAsync(id, page, size, token);
     [HttpPost("{id:long}/counts")]
     public Task<CountView> Count(long id, CountInput input, CancellationToken token) => gyms.CountAsync(id, input, Actor, Owner, token);
-    [HttpGet("count-lines/{id:long}/resolutions")]
+    [HttpGet("count-lines/{id:long}/resolutions"), Authorize(Policy = AdminPolicies.Owner)]
     public Task<ResolutionView[]> Resolutions(long id, CancellationToken token) => gyms.ResolutionsAsync(id, token);
-    [HttpPost("count-lines/{id:long}/resolutions")]
+    [HttpPost("count-lines/{id:long}/resolutions"), Authorize(Policy = AdminPolicies.Owner)]
     public Task<ResolutionView> Resolve(long id, ResolutionInput input, CancellationToken token) => gyms.ResolveAsync(id, input, Actor, token);
     [HttpPost("resolutions/{id:long}/void"), Authorize(Policy = AdminPolicies.Owner)]
     public Task<ResolutionView> Void(long id, ReceiptVoidInput input, CancellationToken token) => gyms.VoidAsync(id, input, Actor, token);
 }
 
-[ApiController, Route("api/admin/content"), Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Admin)]
+[ApiController, Route("api/admin/content"), Authorize(Policy = AdminPolicies.Owner), EnableRateLimiting(RateLimitPolicies.Admin)]
 public sealed class AdminContentController(ContentReportService content) : StaffController
 {
     [HttpGet]

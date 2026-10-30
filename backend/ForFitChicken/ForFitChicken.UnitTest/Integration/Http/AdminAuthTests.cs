@@ -56,7 +56,11 @@ public sealed class AdminAuthApiFactory(MigratedDatabaseFixture database, int lo
 public sealed class AuthPolicyProbeController : ControllerBase
 {
     [HttpGet("staff")]
+    [Authorize(Policy = AdminPolicies.Staff)]
     public IActionResult Staff() => Ok();
+
+    [HttpGet("fallback")]
+    public IActionResult Fallback() => Ok();
 
     [HttpGet("owner")]
     [Authorize(Policy = AdminPolicies.Owner)]
@@ -68,6 +72,60 @@ public sealed class AdminAuthTests(MigratedDatabaseFixture database) : IClassFix
 {
     // Test-only credential, never used for the real development account.
     private const string Password = "TestOnly-StrongPassword42!";
+
+    [SqlServerFact]
+    public async Task OperatorScope_OnlyCatalogInventoryAndGyms_AreAllowed()
+    {
+        await using var factory=new AdminAuthApiFactory(database);using var staff=factory.Client();using var owner=factory.Client();
+        var staffName=await CreateUserAsync(factory,AdminRoles.Operator);var ownerName=await CreateUserAsync(factory,AdminRoles.Owner);
+        Assert.Equal(HttpStatusCode.OK,(await LoginAsync(staff,staffName)).StatusCode);Assert.Equal(HttpStatusCode.OK,(await LoginAsync(owner,ownerName)).StatusCode);
+        foreach(var path in new[]{"/api/auth-policy-probe/fallback","/api/admin/orders","/api/admin/content","/api/admin/reports/sales","/api/admin/notifications","/api/admin/employees","/api/admin/media/assets","/api/admin/media/storage","/api/admin/inventory/batches/1/cost","/api/admin/gyms/count-lines/1/resolutions"})Assert.Equal(HttpStatusCode.Forbidden,(await staff.GetAsync(path)).StatusCode);
+        foreach(var path in new[]{"/api/admin/products","/api/admin/inventory/batches","/api/admin/inventory/balances","/api/admin/inventory/locations","/api/admin/inventory/documents","/api/admin/gyms","/api/admin/auth/me"})Assert.Equal(HttpStatusCode.OK,(await staff.GetAsync(path)).StatusCode);
+        foreach(var path in new[]{"/api/admin/orders","/api/admin/content","/api/admin/notifications","/api/admin/employees"})Assert.Equal(HttpStatusCode.OK,(await owner.GetAsync(path)).StatusCode);
+        async Task<HttpResponseMessage> Send(string path,object input){using var request=new HttpRequestMessage(HttpMethod.Post,path){Content=JsonContent.Create(input)};request.Headers.Add("X-CSRF-TOKEN",await CsrfAsync(staff));return await staff.SendAsync(request);}
+        foreach(var path in new[]{"/api/admin/orders","/api/admin/content/HomeHero/publish","/api/admin/gyms/count-lines/1/resolutions","/api/admin/media/reconcile"})Assert.Equal(HttpStatusCode.Forbidden,(await Send(path,new{})).StatusCode);
+        var slug="scope-"+Guid.NewGuid().ToString("N");
+        var draft=new ForFitChicken.Application.Commerce.ProductInput("Scope product",slug,null,null,null,null,null,null,true,false,false,0,null);
+        var created=await Send("/api/admin/products",draft);Assert.Equal(HttpStatusCode.OK,created.StatusCode);
+        var product=(await created.Content.ReadFromJsonAsync<ForFitChicken.Application.Commerce.ProductView>())!;
+        using(var request=new HttpRequestMessage(HttpMethod.Put,$"/api/admin/products/{product.Id}"){Content=JsonContent.Create(draft with {IsPublished=true,Version=product.Version})}){request.Headers.Add("X-CSRF-TOKEN",await CsrfAsync(staff));Assert.Equal(HttpStatusCode.Forbidden,(await staff.SendAsync(request)).StatusCode);}
+        var adjustment=new {operationKey=Guid.NewGuid(),documentType="Adjustment",reason="Permission test",lines=new[]{new{batchId=999999,quantity=1,toLocationId=999999,toCondition="Good"}}};
+        Assert.Equal(HttpStatusCode.Forbidden,(await Send("/api/admin/inventory/documents",adjustment)).StatusCode);
+    }
+
+    [SqlServerFact]
+    public async Task Employees_OwnerOnly_ValidatesAndRevokesSessions()
+    {
+        await using var factory=new AdminAuthApiFactory(database);
+        using var owner=factory.Client();using var staff=factory.Client();using var anon=factory.Client();
+        Assert.Equal(HttpStatusCode.Unauthorized,(await anon.GetAsync("/api/admin/employees")).StatusCode);
+        var ownerName=await CreateUserAsync(factory,AdminRoles.Owner);
+        Assert.Equal(HttpStatusCode.OK,(await LoginAsync(owner,ownerName)).StatusCode);
+        async Task<HttpResponseMessage> Write(HttpClient c,HttpMethod method,string path,object input){var req=new HttpRequestMessage(method,path){Content=JsonContent.Create(input)};req.Headers.Add("X-CSRF-TOKEN",await CsrfAsync(c));return await c.SendAsync(req);}
+        var name="employee-"+Guid.NewGuid().ToString("N");
+        Assert.Equal(HttpStatusCode.BadRequest,(await owner.PostAsJsonAsync("/api/admin/employees",new EmployeeCreate(name,"Test employee",Password))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await Write(owner,HttpMethod.Post,"/api/admin/employees",new EmployeeCreate(name,"Test employee",new string('a',16)))).StatusCode);
+        var created=await Write(owner,HttpMethod.Post,"/api/admin/employees",new EmployeeCreate(name,"Test employee",Password));Assert.Equal(HttpStatusCode.Created,created.StatusCode);
+        var employee=(await created.Content.ReadFromJsonAsync<EmployeeView>())!;
+        Assert.Equal(HttpStatusCode.Conflict,(await Write(owner,HttpMethod.Post,"/api/admin/employees",new EmployeeCreate(name,"Duplicate",Password))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,(await LoginAsync(staff,name)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,(await staff.GetAsync("/api/admin/employees")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,(await Write(staff,HttpMethod.Post,"/api/admin/employees",new EmployeeCreate("denied-"+Guid.NewGuid().ToString("N"),"Denied",Password))).StatusCode);
+        using(var scope=factory.Services.CreateScope()){var users=scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();var u=(await users.FindByNameAsync(name))!;Assert.Equal(new[]{AdminRoles.Operator},await users.GetRolesAsync(u));var own=(await users.FindByNameAsync(ownerName))!;Assert.Equal(HttpStatusCode.NotFound,(await owner.GetAsync($"/api/admin/employees/{own.Id}")).StatusCode);}
+        var list=await owner.GetStringAsync($"/api/admin/employees?search={name}&active=true&size=1");Assert.Contains(name,list);Assert.DoesNotContain("passwordHash",list,StringComparison.OrdinalIgnoreCase);Assert.DoesNotContain("securityStamp",list,StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.Conflict,(await Write(owner,HttpMethod.Put,$"/api/admin/employees/{employee.Id}",new EmployeeEdit("stale","Stale"))).StatusCode);
+        var edited=await Write(owner,HttpMethod.Put,$"/api/admin/employees/{employee.Id}",new EmployeeEdit(employee.Version,"Updated employee"));Assert.Equal(HttpStatusCode.OK,edited.StatusCode);employee=(await edited.Content.ReadFromJsonAsync<EmployeeView>())!;Assert.Equal("Updated employee",employee.DisplayName);
+        var disabled=await Write(owner,HttpMethod.Put,$"/api/admin/employees/{employee.Id}/status",new EmployeeStatus(employee.Version,false));Assert.Equal(HttpStatusCode.OK,disabled.StatusCode);employee=(await disabled.Content.ReadFromJsonAsync<EmployeeView>())!;
+        Assert.Equal(HttpStatusCode.Unauthorized,(await staff.GetAsync("/api/admin/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,(await LoginAsync(staff,name)).StatusCode);
+        var enabled=await Write(owner,HttpMethod.Put,$"/api/admin/employees/{employee.Id}/status",new EmployeeStatus(employee.Version,true));employee=(await enabled.Content.ReadFromJsonAsync<EmployeeView>())!;
+        Assert.Equal(HttpStatusCode.OK,(await LoginAsync(staff,name)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await Write(owner,HttpMethod.Post,$"/api/admin/employees/{employee.Id}/password",new EmployeePassword(employee.Version,"weak"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,(await Write(owner,HttpMethod.Post,$"/api/admin/employees/{employee.Id}/password",new EmployeePassword(employee.Version,Password+"New1!"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,(await staff.GetAsync("/api/admin/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,(await LoginAsync(staff,name)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,(await LoginAsync(staff,name,Password+"New1!")).StatusCode);
+    }
 
     [SqlServerFact]
     public async Task AnonymousRequests_ReceiveJson401_AndHealthStaysPublic()

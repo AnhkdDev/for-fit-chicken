@@ -84,7 +84,7 @@ public sealed record ResolutionInput([Required] string Version, VarianceDirectio
 public sealed record ResolutionView(long Id, long CountLineId, VarianceDirection Direction, VarianceCategory Category, int Quantity,
     string Reason, DateTime VerifiedAtUtc, DateTime? VoidedAtUtc, string? EvidenceReference, string? VoidReason);
 public sealed record SiteSectionInput([Required, StringLength(200)] string Title, [StringLength(20000)] string? Body,
-    long[] AssetIds, [StringLength(100)] string? LinkLabel, [StringLength(500)] string? LinkUrl, string? Version);
+    long[] AssetIds, [StringLength(100)] string? LinkLabel, [StringLength(500)] string? LinkUrl, string? Version, long[]? ProductIds = null, bool Enabled = true, Dictionary<long, long>? ProductMainImages = null);
 public sealed record SectionView(string SectionKey, SiteSectionInput Content, DateTime? PublishedAtUtc, string? Version);
 public sealed record SalesReport(DateTime FromUtc, DateTime ToUtc, int OrdersRequested, int OrdersCompleted, decimal CompletedItemsValue,
     decimal CodReceived, decimal KnownIssuedCost, int IssuedPackagesWithUnknownCost, string Note);

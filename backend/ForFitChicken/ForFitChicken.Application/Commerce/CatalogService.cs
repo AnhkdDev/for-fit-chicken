@@ -7,10 +7,33 @@ namespace ForFitChicken.Application.Commerce;
 public sealed class CatalogService(ICommerceStore store, IUnitOfWork unit, TimeProvider clock, IMediaStorage media, IMediaPolicySettings policySettings)
     : BusinessService(store, unit, clock)
 {
-    public async Task<Page<ProductView>> ListAsync(bool publicOnly, int page, int size, CancellationToken token)
+    public Task<bool> DeleteAsync(long id, string version, long actor, CancellationToken token) => Write(async () =>
+    {
+        var product = await Need<Product>(id, token); Version(product.Version, version);
+        var variants = await Store.ListAsync(Store.Query<ProductVariant>().Where(x => x.ProductId == id), token);
+        var ids = variants.Select(x => x.Id).ToArray();
+        Check(!await Store.AnyAsync(Store.Query<ProductBatch>().Where(x => ids.Contains(x.VariantId)), token) &&
+            !await Store.AnyAsync(Store.Query<OrderItem>().Where(x => ids.Contains(x.VariantId)), token),
+            "PRODUCT_IN_USE", "Sản phẩm đã có lô hoặc đơn hàng. Hãy ngừng hoạt động/ẩn thay vì xóa lịch sử.");
+        var sections = await Store.ListAsync(Store.Query<SiteContent>(), token);
+        foreach(var json in sections.SelectMany(x => new[]{x.DraftJson,x.PublishedJson}).Where(x => !string.IsNullOrWhiteSpace(x))) {
+            var content = System.Text.Json.JsonSerializer.Deserialize<SiteSectionInput>(json!);
+            Check(content is not null && !(content.ProductIds ?? []).Contains(id), "PRODUCT_ON_DISPLAY", "Bỏ sản phẩm khỏi cấu hình trưng bày nháp và công bố trước khi xóa.");
+        }
+        foreach(var image in await Store.ListAsync(Store.Query<ProductImage>().Where(x => x.ProductId == id), token)) Store.Remove(image);
+        await Unit.SaveChangesAsync(token);
+        foreach(var variant in variants) Store.Remove(variant);
+        await Unit.SaveChangesAsync(token);
+        Store.Remove(product); Audit(actor, "ProductDeleted", nameof(Product), id); return true;
+    }, token);
+
+    public async Task<Page<ProductView>> ListAsync(bool publicOnly, int page, int size, CancellationToken token, string? search = null, string? status = null)
     {
         page = Number(page); size = Size(size);
         var query = Store.Query<Product>().Where(x => !publicOnly || (x.IsActive && x.IsPublished));
+        if(!publicOnly&&status=="active")query=query.Where(x=>x.IsActive);
+        if(!publicOnly&&status=="inactive")query=query.Where(x=>!x.IsActive);
+        if(!string.IsNullOrWhiteSpace(search)){var term=search.Trim();query=query.Where(x=>x.Name.Contains(term)||x.Slug.Contains(term)||Store.Query<ProductVariant>().Any(v=>v.ProductId==x.Id&&v.SkuCode.Contains(term)));}
         var total = await Store.CountAsync(query, token);
         var products = await Store.ListAsync(query.OrderBy(x => x.SortOrder).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size), token);
         var result = new List<ProductView>();
@@ -25,12 +48,13 @@ public sealed class CatalogService(ICommerceStore store, IUnitOfWork unit, TimeP
         return await View(entity, publicOnly, token);
     }
 
-    public Task<ProductView> SaveAsync(long? id, ProductInput input, long actor, CancellationToken token) => Write(async () =>
+    public Task<ProductView> SaveAsync(long? id, ProductInput input, long actor, CancellationToken token, bool owner = true) => Write(async () =>
     {
         Validate(input);
         Check(!string.IsNullOrWhiteSpace(input.Name), "INVALID_INPUT", "Tên sản phẩm bắt buộc.", 400);
         var product = id is null ? new Product { CreatedAtUtc = Now } : await Need<Product>(id.Value, token);
         if (id is not null) Version(product.Version, input.Version);
+        Check(owner || (input.IsPublished == product.IsPublished && input.IsFeatured == product.IsFeatured && (!product.IsPublished || input.IsActive == product.IsActive)), "OWNER_REQUIRED", "Chỉ Owner được công bố, ẩn hoặc đổi trạng thái nổi bật của sản phẩm trên website.", 403);
         Check(!await Store.AnyAsync(Store.Query<Product>().Where(x => x.Slug == input.Slug && x.Id != product.Id), token), "DUPLICATE_SLUG", "Slug đã tồn tại.");
         if (input.IsPublished)
         {

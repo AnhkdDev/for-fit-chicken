@@ -73,6 +73,8 @@ public static class DependencyInjection
           .AddEntityFrameworkStores<ForFitChickenDbContext>()
           .AddSignInManager();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
+        services.AddScoped<IEmployeeAccounts, EmployeeAccounts>();
+        services.AddScoped<EmployeeService>();
         services.AddScoped<IOwnerBootstrapper, OwnerBootstrapper>();
 
         return services;

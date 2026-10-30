@@ -6,6 +6,16 @@ namespace ForFitChicken.Application.Commerce;
 
 public sealed class InventoryService(ICommerceStore store, IUnitOfWork unit, TimeProvider clock) : BusinessService(store, unit, clock)
 {
+    public Task<bool> DeleteBatchAsync(long id, string version, long actor, CancellationToken token) => Write(async () =>
+    {
+        var batch = await Need<ProductBatch>(id, token); Version(batch.Version, version);
+        Check(!await Store.AnyAsync(Store.Query<WarehouseBalance>().Where(x => x.BatchId == id), token) &&
+            !await Store.AnyAsync(Store.Query<StockDocumentLine>().Where(x => x.BatchId == id), token) &&
+            !await Store.AnyAsync(Store.Query<GymStockCountLine>().Where(x => x.BatchId == id), token),
+            "BATCH_IN_USE", "Lô đã phát sinh tồn kho, chứng từ hoặc kiểm đếm; không thể xóa lịch sử. Có thể khóa bán lô.");
+        Store.Remove(batch); Audit(actor, "BatchDeleted", nameof(ProductBatch), id); return true;
+    }, token);
+
     public Task<long> InitializeWarehouseAsync(long actor, CancellationToken token) => Write(async () =>
     {
         var locations = await Store.ListAsync(Store.Query<StockLocation>().Where(x => x.Kind == StockLocationKind.Warehouse), token);
@@ -35,9 +45,13 @@ public sealed class InventoryService(ICommerceStore store, IUnitOfWork unit, Tim
         Store.Add(batch); await Unit.SaveChangesAsync(token); Audit(actor, "BatchCreated", nameof(ProductBatch), batch.Id); return Batch(batch);
     }, token);
 
-    public async Task<Page<BatchView>> BatchesAsync(int page, int size, CancellationToken token)
+    public async Task<Page<BatchView>> BatchesAsync(int page, int size, CancellationToken token, string? search = null, string? status = null)
     {
-        page = Number(page); size = Size(size); var query = Store.Query<ProductBatch>();
+        page = Number(page); size = Size(size); var query = Store.Query<ProductBatch>(); var now=Now;
+        if(status=="active")query=query.Where(x=>!x.IsSaleBlocked&&x.ExpiresAtUtc>now);
+        if(status=="blocked")query=query.Where(x=>x.IsSaleBlocked);
+        if(status=="expired")query=query.Where(x=>x.ExpiresAtUtc<=now);
+        if(!string.IsNullOrWhiteSpace(search)){var term=search.Trim();query=query.Where(x=>x.BatchCode.Contains(term)||Store.Query<ProductVariant>().Any(v=>v.Id==x.VariantId&&(v.SkuCode.Contains(term)||Store.Query<Product>().Any(p=>p.Id==v.ProductId&&p.Name.Contains(term)))));}
         return new((await Store.ListAsync(query.OrderByDescending(x => x.Id).Skip((page - 1) * size).Take(size), token)).Select(Batch).ToArray(), await Store.CountAsync(query, token), page, size);
     }
 
@@ -83,6 +97,8 @@ public sealed class InventoryService(ICommerceStore store, IUnitOfWork unit, Tim
         Validate(input); foreach (var line in input.Lines) Validate(line);
         Check(input.OperationKey != Guid.Empty && Enum.IsDefined(input.DocumentType) && input.DocumentType != StockDocumentType.OrderIssue,
             "INVALID_MOVEMENT", "OperationKey bắt buộc; không xuất đơn qua API chứng từ thủ công.", 400);
+        Check(input.DocumentType != StockDocumentType.Adjustment || owner, "OWNER_REQUIRED", "Điều chỉnh kho cần Owner.", 403);
+        Check(owner || input.CorrectsDocumentId is null, "OWNER_REQUIRED", "Chỉ Owner được lập phiếu sửa chứng từ.", 403);
         var old = (await Store.ListAsync(Store.Query<StockDocument>().Where(x => x.OperationKey == input.OperationKey), token)).SingleOrDefault();
         if (old is not null)
         {
@@ -92,7 +108,7 @@ public sealed class InventoryService(ICommerceStore store, IUnitOfWork unit, Tim
                 "IDEMPOTENCY_CONFLICT", "OperationKey đã dùng cho nội dung khác.");
             return oldView;
         }
-        Check(input.DocumentType != StockDocumentType.Adjustment || owner, "OWNER_REQUIRED", "Điều chỉnh kho cần Owner.", 403);
+
         if (input.CorrectsDocumentId is not null)
         {
             var corrected = await Need<StockDocument>(input.CorrectsDocumentId.Value, token);

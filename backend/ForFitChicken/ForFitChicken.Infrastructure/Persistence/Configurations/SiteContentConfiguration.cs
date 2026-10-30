@@ -12,7 +12,7 @@ public sealed class SiteContentConfiguration : IEntityTypeConfiguration<SiteCont
     {
         builder.ToTable("SiteContent", table =>
         {
-            table.HasCheckConstraint("CK_SiteContent_Section", "[SectionKey] IN ('HomeHero', 'Story', 'Usage', 'Faq', 'Contact', 'SiteSettings')");
+            table.HasCheckConstraint("CK_SiteContent_Section", "[SectionKey] IN ('HomeHero', 'Story', 'Usage', 'Faq', 'Contact', 'SiteSettings', 'HomeProducts')");
             table.HasCheckConstraint("CK_SiteContent_Json", "[SchemaVersion] > 0 AND ISJSON([DraftJson]) = 1 AND ([PublishedJson] IS NULL OR ISJSON([PublishedJson]) = 1)");
             table.HasCheckConstraint("CK_SiteContent_Publication", "([PublishedJson] IS NULL AND [PublishedAtUtc] IS NULL AND [PublishedByUserId] IS NULL) OR ([PublishedJson] IS NOT NULL AND [PublishedAtUtc] IS NOT NULL AND [PublishedByUserId] IS NOT NULL)");
         });

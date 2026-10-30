@@ -20,6 +20,61 @@ namespace ForFitChicken.UnitTest.Integration.Persistence;
 public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixture<MigratedDatabaseFixture>
 {
     [SqlServerFact]
+    public async Task AdminSearch_FiltersBeforePaging_AndRetainsInactiveHistory()
+    {
+        await using var s=await Setup();
+        var found=await s.Run(p=>p.GetRequiredService<CatalogService>().ListAsync(false,1,1,default,s.Variant.SkuCode,"active"));
+        Assert.Equal(s.Product.Id,Assert.Single(found.Items).Id);
+        var batch=await s.Run(p=>p.GetRequiredService<InventoryService>().BatchesAsync(1,1,default,s.Batch.BatchCode,"active"));
+        Assert.Equal(1,batch.Total);
+        await s.Run(p=>p.GetRequiredService<InventoryService>().BlockAsync(s.Batch.Id,new(s.Batch.Version!,true,"Test filter"),s.Actor,default));
+        Assert.Empty((await s.Run(p=>p.GetRequiredService<InventoryService>().BatchesAsync(1,20,default,s.Batch.BatchCode,"active"))).Items);
+        Assert.Equal(1,(await s.Run(p=>p.GetRequiredService<InventoryService>().BatchesAsync(1,20,default,s.Variant.SkuCode,"blocked"))).Total);
+        await s.Run(p=>p.GetRequiredService<CatalogService>().SaveAsync(s.Product.Id,s.ProductInput with {Version=s.Product.Version,IsActive=false,IsPublished=false},s.Actor,default));
+        Assert.Empty((await s.Run(p=>p.GetRequiredService<CatalogService>().ListAsync(false,1,20,default,s.Variant.SkuCode,"active"))).Items);
+        Assert.Equal(1,(await s.Run(p=>p.GetRequiredService<CatalogService>().ListAsync(false,1,20,default,s.Variant.SkuCode,"inactive"))).Total);
+    }
+
+    [SqlServerFact]
+    public async Task Delete_UnusedProductAndBatch_RejectsStaleAndPreservesUsedHistory()
+    {
+        await using var empty = await Setup(stock:0);
+        Assert.Equal("VERSION_CONFLICT", (await Assert.ThrowsAsync<BusinessException>(()=>empty.Run(p=>p.GetRequiredService<InventoryService>().DeleteBatchAsync(empty.Batch.Id,"stale",empty.Actor,default)))).Code);
+        Assert.True(await empty.Run(p=>p.GetRequiredService<InventoryService>().DeleteBatchAsync(empty.Batch.Id,empty.Batch.Version!,empty.Actor,default)));
+        Assert.True(await empty.Run(p=>p.GetRequiredService<CatalogService>().DeleteAsync(empty.Product.Id,empty.Product.Version!,empty.Actor,default)));
+        Assert.Equal("NOT_FOUND",(await Assert.ThrowsAsync<BusinessException>(()=>empty.Run(p=>p.GetRequiredService<CatalogService>().GetAsync(empty.Product.Id,false,default)))).Code);
+        await using var used = await Setup();
+        Assert.Equal("BATCH_IN_USE", (await Assert.ThrowsAsync<BusinessException>(()=>used.Run(p=>p.GetRequiredService<InventoryService>().DeleteBatchAsync(used.Batch.Id,used.Batch.Version!,used.Actor,default)))).Code);
+        Assert.Equal("PRODUCT_IN_USE", (await Assert.ThrowsAsync<BusinessException>(()=>used.Run(p=>p.GetRequiredService<CatalogService>().DeleteAsync(used.Product.Id,used.Product.Version!,used.Actor,default)))).Code);
+    }
+    [SqlServerFact]
+    public async Task Display_MainImageMustBelongToSelectedProduct()
+    {
+        await using var s = await Setup();
+        var current=(await s.Run(p=>p.GetRequiredService<ContentReportService>().ContentAsync(false,default))).SingleOrDefault(x=>x.SectionKey=="HomeProducts");
+        var input = new SiteSectionInput("Ảnh chính "+Guid.NewGuid(),null,[],null,null,current?.Version,[s.Product.Id],true,new(){{s.Product.Id,s.Product.Images[0].AssetId}});
+        var saved=await s.Run(p=>p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts",input,s.Actor,default));
+        Assert.Equal(input.ProductMainImages, saved.Content.ProductMainImages);
+        Assert.Equal("INVALID_PRODUCT_IMAGE",(await Assert.ThrowsAsync<BusinessException>(()=>s.Run(p=>p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts",input with {Version=saved.Version,ProductMainImages=new(){{s.Product.Id,long.MaxValue}}},s.Actor,default)))).Code);
+    }
+
+    [SqlServerFact]
+    public async Task HomeProducts_DraftPublishAndValidation()
+    {
+        await using var s = await Setup();
+        var current=(await s.Run(p=>p.GetRequiredService<ContentReportService>().ContentAsync(false,default))).SingleOrDefault(x=>x.SectionKey=="HomeProducts");
+        var input = new SiteSectionInput("Chủ lực "+Guid.NewGuid(), "Giới thiệu", [], "Tất cả", "/san-pham", current?.Version, [s.Product.Id]);
+        var draft = await s.Run(p => p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts", input, s.Actor, default));
+        Assert.DoesNotContain(await s.Run(p => p.GetRequiredService<ContentReportService>().ContentAsync(true, default)), x => x.SectionKey == "HomeProducts" && x.Content.Title==input.Title);
+        Assert.Equal("INVALID_PRODUCTS", (await Assert.ThrowsAsync<BusinessException>(() => s.Run(p => p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts", input with { ProductIds = [s.Product.Id,s.Product.Id], Version = draft.Version }, s.Actor, default)))).Code);
+        await s.Run(p => p.GetRequiredService<ContentReportService>().PublishAsync("HomeProducts", draft.Version!, s.Actor, default));
+        var published = Assert.Single(await s.Run(p => p.GetRequiredService<ContentReportService>().ContentAsync(true, default)), x => x.SectionKey == "HomeProducts");
+        Assert.Equal(new[]{s.Product.Id}, published.Content.ProductIds);
+        await s.Run(p => p.GetRequiredService<CatalogService>().SaveAsync(s.Product.Id, s.ProductInput with { IsPublished=false, Version=s.Product.Version }, s.Actor, default));
+        Assert.Equal("PRODUCT_UNAVAILABLE", (await Assert.ThrowsAsync<BusinessException>(() => s.Run(p => p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts", input with { Version=draft.Version }, s.Actor, default)))).Code);
+    }
+
+    [SqlServerFact]
     public async Task Checkout_IsIdempotent_SnapshotsPrice_AndDoesNotReserve()
     {
         await using var s = await Setup(); var key = Guid.NewGuid(); var request = s.Cart(3);

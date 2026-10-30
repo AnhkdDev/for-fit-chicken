@@ -1341,7 +1341,7 @@ namespace ForFitChicken.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_SiteContent_Publication", "([PublishedJson] IS NULL AND [PublishedAtUtc] IS NULL AND [PublishedByUserId] IS NULL) OR ([PublishedJson] IS NOT NULL AND [PublishedAtUtc] IS NOT NULL AND [PublishedByUserId] IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_SiteContent_Section", "[SectionKey] IN ('HomeHero', 'Story', 'Usage', 'Faq', 'Contact', 'SiteSettings')");
+                            t.HasCheckConstraint("CK_SiteContent_Section", "[SectionKey] IN ('HomeHero', 'Story', 'Usage', 'Faq', 'Contact', 'SiteSettings', 'HomeProducts')");
                         });
                 });
 
