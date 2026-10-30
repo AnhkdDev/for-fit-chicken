@@ -1,7 +1,7 @@
 # Phân quyền Operator — 29/10/2026
 
 Quyết định người dùng: Operator quản lý sản phẩm, lô/kho và gym; được nhập/xuất và giao/kiểm đếm ký gửi.
-Các module khác chỉ Owner. Giữ2 role, không thêm role hoặc migration. Đây là checkpoint backend, chưa thu gọn frontend.
+Cập nhật30/10: Operator được thêm Tổng quan, Đơn hàng (kể cả COD), Báo cáo, Thông báo. Giữ2 role, không thêm migration. Các đoạn lịch sử bên dưới không thay thế ma trận hiện hành.
 
 | Nhóm API | Operator | Owner |
 |---|---|---|
@@ -16,9 +16,10 @@ Các module khác chỉ Owner. Giữ2 role, không thêm role hoặc migration. 
 | gym thông tin/stock/counts; kiểm đếm Regular | Có | Có |
 | kiểm đếm mở đầu (baseline) | 403 | Có |
 | gym resolutions đọc/xác nhận/hủy xác nhận | 403 | Có |
-| admin/orders toàn bộ (cả đọc và manual create) | 403 | Có |
+| admin/orders toàn bộ: xem/tạo/sửa/chuyển trạng thái/thu COD/hủy thu | Có | Có |
 | admin/content toàn bộ (cả nháp/preview data/trưng bày) | 403 | Có |
-| employees/reports/notifications/admin media quota/assets/cleanup | 403 | Có |
+| reports xem doanh thu/giá vốn tổng hợp; notifications xem/retry lỗi | Có | Có |
+| employees/admin media quota/assets/cleanup | 403 | Có |
 | media upload phục vụ sản phẩm/gym và GET ảnh | Có như cũ | Có |
 
 Public products/gyms/content/checkout vẫn dành khách không đăng nhập; không được nhầm với quyền admin orders.
@@ -52,3 +53,4 @@ Kết quả chốt29/10:34/34 tests AdminAuthTests + CommerceTests SQL-enabled �
 ## Operator frontend đồng bộ29/10
 Menu Operator chỉ san-pham/kho/phong-gym; index redirect sang sản phẩm. Routes đơn/nội dung/trưng bày/thư viện/nhân viên/báo cáo/thông báo bị chặn mà không mount component, tránh gọi API cấm. Product Operator ẩn featured/publish step, khóa active khi product đang publish; vẫn form ảnh upload phục vụ sản phẩm. Owner giữ nguyên chức năng.
 Build và14/14 Node tests đạt (gồm2 permission tests cho menu/subroutes). Không thử account Operator thật hoặc browser fixture lượt này; backend34 tests trước đó là bằng chứng phân quyền server, không phải UI UAT. Không chạy listener/test DB, không commit/push. Cần backend mới và reload frontend để nghiệm thu role thật.
+
