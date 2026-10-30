@@ -120,7 +120,7 @@ public sealed class AdminInventoryController(InventoryService inventory) : Staff
     public Task<DocumentView> Post(MovementInput input, CancellationToken token) => inventory.PostAsync(input, Actor, Owner, token);
 }
 
-[ApiController, Route("api/admin/orders"), Authorize(Policy = AdminPolicies.Owner), EnableRateLimiting(RateLimitPolicies.Admin)]
+[ApiController, Route("api/admin/orders"), Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Admin)]
 public sealed class AdminOrdersController(OrderService orders) : StaffController
 {
     [HttpPost]
@@ -136,11 +136,11 @@ public sealed class AdminOrdersController(OrderService orders) : StaffController
     // "action" is a reserved MVC route value; use a non-reserved parameter name.
     [HttpPost("{id:long}/actions/{command}")]
     public Task<OrderView> Transition(long id, string command, OrderActionInput input, CancellationToken token) => orders.TransitionAsync(id, command, input.Version, input.Reason, Actor, token);
-    [HttpGet("{id:long}/receipts"), Authorize(Policy = AdminPolicies.Owner)]
+    [HttpGet("{id:long}/receipts")]
     public Task<ReceiptView[]> Receipts(long id, CancellationToken token) => orders.ReceiptsAsync(id, token);
-    [HttpPost("{id:long}/receipts"), Authorize(Policy = AdminPolicies.Owner)]
+    [HttpPost("{id:long}/receipts")]
     public Task<ReceiptView> Receive(long id, ReceiptInput input, CancellationToken token) => orders.ReceiveAsync(id, input, Actor, token);
-    [HttpPost("receipts/{id:long}/void"), Authorize(Policy = AdminPolicies.Owner)]
+    [HttpPost("receipts/{id:long}/void")]
     public Task<ReceiptView> Void(long id, ReceiptVoidInput input, CancellationToken token) => orders.VoidReceiptAsync(id, input, Actor, token);
 }
 public sealed record OrderActionInput([Required] string Version, [StringLength(500)] string? Reason);
@@ -180,13 +180,13 @@ public sealed class AdminContentController(ContentReportService content) : Staff
     public Task<SectionView> Publish(string key, VersionInput input, CancellationToken token) => content.PublishAsync(key, input.Version, Actor, token);
 }
 
-[ApiController, Route("api/admin/reports"), Authorize(Policy = AdminPolicies.Owner), EnableRateLimiting(RateLimitPolicies.Reports)]
+[ApiController, Route("api/admin/reports"), Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Reports)]
 public sealed class AdminReportsController(ContentReportService reports) : StaffController
 {
     [HttpGet("sales")]
     public Task<SalesReport> Sales(DateTime fromUtc, DateTime toUtc, CancellationToken token) => reports.ReportAsync(fromUtc, toUtc, token);
 }
-[ApiController, Route("api/admin/notifications"), Authorize(Policy = AdminPolicies.Owner), EnableRateLimiting(RateLimitPolicies.Admin)]
+[ApiController, Route("api/admin/notifications"), Authorize(Policy = AdminPolicies.Staff), EnableRateLimiting(RateLimitPolicies.Admin)]
 public sealed class AdminNotificationsController(ContentReportService content) : StaffController
 {
     [HttpGet]
@@ -194,3 +194,4 @@ public sealed class AdminNotificationsController(ContentReportService content) :
     [HttpPost("{id:long}/retry")]
     public Task<bool> Retry(long id, CancellationToken token) => content.RetryNotificationAsync(id, Actor, token);
 }
+

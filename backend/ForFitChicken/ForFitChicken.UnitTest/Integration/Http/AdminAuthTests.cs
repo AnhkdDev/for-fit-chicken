@@ -74,16 +74,20 @@ public sealed class AdminAuthTests(MigratedDatabaseFixture database) : IClassFix
     private const string Password = "TestOnly-StrongPassword42!";
 
     [SqlServerFact]
-    public async Task OperatorScope_OnlyCatalogInventoryAndGyms_AreAllowed()
+    public async Task OperatorScope_ExpandedOperations_KeepOwnerAdministrationRestricted()
     {
         await using var factory=new AdminAuthApiFactory(database);using var staff=factory.Client();using var owner=factory.Client();
         var staffName=await CreateUserAsync(factory,AdminRoles.Operator);var ownerName=await CreateUserAsync(factory,AdminRoles.Owner);
         Assert.Equal(HttpStatusCode.OK,(await LoginAsync(staff,staffName)).StatusCode);Assert.Equal(HttpStatusCode.OK,(await LoginAsync(owner,ownerName)).StatusCode);
-        foreach(var path in new[]{"/api/auth-policy-probe/fallback","/api/admin/orders","/api/admin/content","/api/admin/reports/sales","/api/admin/notifications","/api/admin/employees","/api/admin/media/assets","/api/admin/media/storage","/api/admin/inventory/batches/1/cost","/api/admin/gyms/count-lines/1/resolutions"})Assert.Equal(HttpStatusCode.Forbidden,(await staff.GetAsync(path)).StatusCode);
-        foreach(var path in new[]{"/api/admin/products","/api/admin/inventory/batches","/api/admin/inventory/balances","/api/admin/inventory/locations","/api/admin/inventory/documents","/api/admin/gyms","/api/admin/auth/me"})Assert.Equal(HttpStatusCode.OK,(await staff.GetAsync(path)).StatusCode);
+        foreach(var path in new[]{"/api/auth-policy-probe/fallback","/api/admin/content","/api/admin/employees","/api/admin/media/assets","/api/admin/media/storage","/api/admin/inventory/batches/1/cost","/api/admin/gyms/count-lines/1/resolutions"})Assert.Equal(HttpStatusCode.Forbidden,(await staff.GetAsync(path)).StatusCode);
+        foreach(var path in new[]{"/api/admin/orders","/api/admin/reports/sales?fromUtc=2026-01-01T00:00:00Z&toUtc=2026-01-02T00:00:00Z","/api/admin/notifications","/api/admin/products","/api/admin/inventory/batches","/api/admin/inventory/balances","/api/admin/inventory/locations","/api/admin/inventory/documents","/api/admin/gyms","/api/admin/auth/me"})Assert.Equal(HttpStatusCode.OK,(await staff.GetAsync(path)).StatusCode);
         foreach(var path in new[]{"/api/admin/orders","/api/admin/content","/api/admin/notifications","/api/admin/employees"})Assert.Equal(HttpStatusCode.OK,(await owner.GetAsync(path)).StatusCode);
         async Task<HttpResponseMessage> Send(string path,object input){using var request=new HttpRequestMessage(HttpMethod.Post,path){Content=JsonContent.Create(input)};request.Headers.Add("X-CSRF-TOKEN",await CsrfAsync(staff));return await staff.SendAsync(request);}
-        foreach(var path in new[]{"/api/admin/orders","/api/admin/content/HomeHero/publish","/api/admin/gyms/count-lines/1/resolutions","/api/admin/media/reconcile"})Assert.Equal(HttpStatusCode.Forbidden,(await Send(path,new{})).StatusCode);
+        foreach(var path in new[]{"/api/admin/content/HomeHero/publish","/api/admin/gyms/count-lines/1/resolutions","/api/admin/media/reconcile"})Assert.Equal(HttpStatusCode.Forbidden,(await Send(path,new{})).StatusCode);
+        // Authenticated mutations reach validation/business rules; no Owner-only gate remains.
+        Assert.Equal(HttpStatusCode.BadRequest,(await Send("/api/admin/orders",new{})).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,(await Send("/api/admin/notifications/9223372036854775807/retry",new{})).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,(await staff.GetAsync("/api/admin/orders/9223372036854775807/receipts")).StatusCode);
         var slug="scope-"+Guid.NewGuid().ToString("N");
         var draft=new ForFitChicken.Application.Commerce.ProductInput("Scope product",slug,null,null,null,null,null,null,true,false,false,0,null);
         var created=await Send("/api/admin/products",draft);Assert.Equal(HttpStatusCode.OK,created.StatusCode);
@@ -401,3 +405,5 @@ public sealed class AdminAuthTests(MigratedDatabaseFixture database) : IClassFix
         return client.SendAsync(request);
     }
 }
+
+
