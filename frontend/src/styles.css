@@ -4104,7 +4104,20 @@ progress::-webkit-progress-value {
 }
 
 /* Let the logo sit directly on its surrounding surface. */
-footer .brand-logo, .login-art .brand-logo, .sidebar-brand > .brand-logo { background: transparent; }
+footer .brand-logo {
+  background: #ffffff;
+  padding: 8px 14px;
+  border-radius: 14px;
+  display: inline-flex;
+}
+
+.login-art .brand-logo,
+.sidebar-brand > .brand-logo {
+  background: #ffffff;
+  padding: 8px 12px;
+  border-radius: 14px;
+  display: inline-flex;
+}
 /* Home is a teaser; full CMS story remains on /cau-chuyen. */
 .discovery-copy .discovery-excerpt {
  display: -webkit-box;

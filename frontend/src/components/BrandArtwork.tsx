@@ -11,10 +11,10 @@ export function BrandArtwork({
   const backgroundFilter = `logo-background-${useId().replace(/:/g, '')}`;
   const viewBox =
     part === 'symbol'
-      ? '490 300 630 770'
+      ? '512 309 596 751'
       : part === 'wordmark'
-        ? '400 1080 810 390'
-        : '400 300 810 1170';
+        ? '420 1105 782 364'
+        : '420 309 782 1160';
   return (
     <svg className={className} viewBox={viewBox} aria-hidden="true" focusable="false">
       <defs>
