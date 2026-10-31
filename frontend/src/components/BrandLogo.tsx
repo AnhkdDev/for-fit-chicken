@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { BrandArtwork } from './BrandArtwork';
 
-// Display windows into the supplied artwork; the original bitmap is preserved byte-for-byte.
+// Display clipped windows into the approved artwork; keep its bitmap unchanged.
 // Splitting its symbol/wordmark visually keeps the vertical logo legible in a short navbar.
 export function BrandLogo({ workspace = false }: { workspace?: boolean }) {
   return (
