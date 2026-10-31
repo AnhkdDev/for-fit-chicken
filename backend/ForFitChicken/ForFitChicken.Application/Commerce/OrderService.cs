@@ -49,9 +49,20 @@ public sealed class OrderService(ICommerceStore store, IUnitOfWork unit, TimePro
         Store.Add(order); await Unit.SaveChangesAsync(token);
         foreach (var line in lines) { line.OrderId = order.Id; Store.Add(line); }
         Event(order.Id, "OrderRequested", null, order.Status, null, actor);
-        if (actor is not null) Audit(actor.Value, "ManualOrderCreated", nameof(Order), order.Id);
+        if (actor is not null)
+        {
+            // Persist item identities before FEFO allocations, inside the same locked transaction.
+            await Unit.SaveChangesAsync(token);
+            await Reserve(lines.ToArray(), token);
+            order.Status = OrderStatus.Confirmed;
+            order.ConfirmedAtUtc = now;
+            order.ConfirmedByUserId = actor;
+            Event(order.Id, "ManualOrderConfirmed", OrderStatus.PendingConfirmation, OrderStatus.Confirmed,
+                "Nhân viên chốt đơn khi tạo thủ công.", actor);
+            Audit(actor.Value, "ManualOrderCreated", nameof(Order), order.Id);
+        }
         var settings = notifications.Current;
-        if (settings.Enabled)
+        if (source == OrderSource.Website && actor is null && settings.Enabled)
         {
             Check(settings.TargetChatId is not null and not 0, "NOTIFICATION_CONFIGURATION", "Cấu hình Telegram chưa đầy đủ.", 503);
             Store.Add(new NotificationJob { OrderId = order.Id, TargetChatId = settings.TargetChatId.GetValueOrDefault(),
@@ -90,7 +101,9 @@ public sealed class OrderService(ICommerceStore store, IUnitOfWork unit, TimePro
         Event(id, "RecipientUpdated", order.Status, order.Status, null, actor); await Unit.SaveChangesAsync(token); return await View(order, token);
     }, token);
 
-    public Task<OrderView> TransitionAsync(long id, string action, string version, string? reason, long actor, CancellationToken token) => Write(async () =>
+    public Task<OrderView> TransitionAsync(long id, string action, string version, string? reason, long actor, CancellationToken token) =>
+        Write(() => TransitionCore(id, action, version, reason, actor, token), token);
+    private async Task<OrderView> TransitionCore(long id, string action, string version, string? reason, long actor, CancellationToken token)
     {
         var order = await Need<Order>(id, token); var before = order.Status;
         var target = action switch { "confirm" => OrderStatus.Confirmed, "prepare" => OrderStatus.Preparing, "handover" => OrderStatus.HandedOver,
@@ -142,9 +155,11 @@ public sealed class OrderService(ICommerceStore store, IUnitOfWork unit, TimePro
         }
         order.Status = target; order.UpdatedAtUtc = Now; Event(id, action, before, target, reason, actor);
         Audit(actor, "Order" + action, nameof(Order), id); await Unit.SaveChangesAsync(token); return await View(order, token);
-    }, token);
+    }
 
-    public Task<ReceiptView> ReceiveAsync(long id, ReceiptInput input, long actor, CancellationToken token) => Write(async () =>
+    public Task<ReceiptView> ReceiveAsync(long id, ReceiptInput input, long actor, CancellationToken token) =>
+        Write(() => ReceiveCore(id, input, actor, token), token);
+    private async Task<ReceiptView> ReceiveCore(long id, ReceiptInput input, long actor, CancellationToken token)
     {
         Validate(input); var order = await Need<Order>(id, token);
         var old = (await Store.ListAsync(Store.Query<CodReceipt>().Where(x => x.OrderId == id && x.VoidedAtUtc == null), token)).SingleOrDefault();
@@ -156,6 +171,26 @@ public sealed class OrderService(ICommerceStore store, IUnitOfWork unit, TimePro
         var receipt = new CodReceipt { OrderId = id, Amount = order.ItemsSubtotal, ReceivedAtUtc = input.ReceivedAtUtc,
             RecordedAtUtc = Now, RecordedByUserId = actor, Reference = input.Reference };
         Store.Add(receipt); order.UpdatedAtUtc = Now; await Unit.SaveChangesAsync(token); Audit(actor, "CodReceived", nameof(CodReceipt), receipt.Id); return Receipt(receipt);
+    }
+
+    public Task<OrderView> CompleteAndReceiveAsync(long id, CompleteAndReceiveInput input, long actor, CancellationToken token) => Write(async () =>
+    {
+        Validate(input);
+        Check(input.Reason is null || input.Reason.Length <= 200, "INVALID_REFERENCE", "Ghi chú thu tiền tối đa 200 ký tự.", 400);
+        var order = await Need<Order>(id, token);
+        Check(order.Status is OrderStatus.Confirmed or OrderStatus.Preparing or OrderStatus.HandedOver or OrderStatus.Completed,
+            "INVALID_ORDER_STATE", "Chỉ hoàn thành và thu tiền cho đơn đã xác nhận, đang chuẩn bị hoặc đã giao.");
+        var paid = await Store.AnyAsync(Store.Query<CodReceipt>().Where(x => x.OrderId == id && x.VoidedAtUtc == null), token);
+        if (order.Status == OrderStatus.Completed && paid) return await View(order, token);
+        Version(order.Version, input.Version);
+        var current = await View(order, token);
+        if (order.Status is OrderStatus.Confirmed or OrderStatus.Preparing)
+            current = await TransitionCore(id, "handover", current.Version, input.Reason, actor, token);
+        if (order.Status == OrderStatus.HandedOver)
+            current = await TransitionCore(id, "complete", current.Version, input.Reason, actor, token);
+        await ReceiveCore(id, new ReceiptInput(current.Version, Now, input.Reason), actor, token);
+        Audit(actor, "OrderCompletedAndPaid", nameof(Order), id);
+        return await View(order, token);
     }, token);
     public async Task<ReceiptView[]> ReceiptsAsync(long id, CancellationToken token) =>
         (await Store.ListAsync(Store.Query<CodReceipt>().Where(x => x.OrderId == id).OrderByDescending(x => x.Id), token)).Select(Receipt).ToArray();
