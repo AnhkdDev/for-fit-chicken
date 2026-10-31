@@ -200,6 +200,14 @@ export function ProductWorkspace() {
                   <fieldset disabled={busy} className="form-stack">
                     <Panel>
                       <h2>Thông tin cơ bản</h2>
+                      <p className="admin-help">
+                        Tên và mô tả ngắn được dùng chung ở trang chủ, danh sách và chi tiết sản
+                        phẩm. Viết tên rõ hương vị, mô tả 1–2 câu, tránh lặp lại tên. Giá, khối
+                        lượng và tên lựa chọn nhập tại bước Quy cách; không ghép giá vào tên sản
+                        phẩm. Khi sản phẩm đã công bố, lưu thông tin có thể cập nhật ngay các vị trí
+                        đang trưng bày. Trang chủ xem trước tối đa 3 dòng mô tả; khách mở chi tiết
+                        để đọc đầy đủ.
+                      </p>
                       <label>
                         Tên sản phẩm *
                         <input
@@ -227,7 +235,10 @@ export function ProductWorkspace() {
                             setDraft({ ...draft, slug: e.target.value });
                           }}
                         />
-                        <small>Được gợi ý từ tên; có thể chỉnh trước khi lưu.</small>
+                        <small>
+                          Mã đường dẫn được gợi ý từ tên. Đợt này website vẫn truy cập sản phẩm bằng
+                          ID; sửa trường này chưa đổi URL khách đang dùng.
+                        </small>
                       </label>
                       <label>
                         Mô tả ngắn
@@ -255,10 +266,18 @@ export function ProductWorkspace() {
                               checked={draft.isFeatured}
                               onChange={(e) => setDraft({ ...draft, isFeatured: e.target.checked })}
                             />
-                            Sản phẩm nổi bật
+                            Sản phẩm nổi bật (danh sách dự phòng)
                           </label>
                         )}
                       </div>
+                      {owner && (
+                        <p className="admin-help">
+                          Để chọn sản phẩm và ảnh chính trên trang chủ, vào{' '}
+                          <Link to="/quan-tri/trung-bay">Trưng bày trang chủ</Link>. Dấu nổi bật chỉ
+                          quyết định danh sách trang chủ khi chưa có cấu hình trưng bày được công
+                          bố.
+                        </p>
+                      )}
                     </Panel>
                     <Panel>
                       <details>
