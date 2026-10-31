@@ -173,7 +173,10 @@ Checkout body:
 Không gửi giá/tổng từ giỏ hàng. Cần 1–20 SKU khác nhau, mỗi SKU 1–100 gói, phone `0`+9 số hoặc `+84`+9 số.
 Giỏ lưu trình duyệt; SKU trùng phải gộp trước. Checkout kiểm tra lượng hiện có nhưng chưa reserved;
 team gọi xác nhận sau. Website chỉ đặt SKU đang công bố; đơn thủ công có thể dùng SKU active chưa công bố.
-Admin create body `{source:"Facebook",order:{...checkoutBody}}`. Trạng thái ban đầu vẫn PendingConfirmation.
+Admin create body `{source:"Facebook",order:{...checkoutBody}}`. Từ 30/10/2026 đơn thủ công mới được
+xác nhận ngay thành Confirmed và giữ FEFO trong cùng giao dịch tạo; không tạo NotificationJob Telegram.
+Thiếu hàng/lỗi giữ hàng rollback toàn bộ đơn, items, reservation và idempotency. Website vẫn PendingConfirmation,
+chưa giữ hàng và tạo NotificationJob khi Telegram bật. Bàn giao và ghi nhận COD vẫn là các bước riêng.
 Địa chỉ tự do, phạm vi giao Hà Nội được nhóm xác minh khi gọi; app không tính quãng đường/phí giao hay gọi hãng vận chuyển.
 
 Response guest 201: orderNumber, status, itemsSubtotal, createdAtUtc. Không recipient, id nội bộ hoặc giá vốn.
@@ -298,3 +301,22 @@ Chốt Operator được nhập/xuất và giao/kiểm đếm Regular gym. Backe
 User requested Operator xem/sửa Tổng quan, Đơn hàng, Báo cáo, Thông báo. API orders/reports/notifications now AdminStaff. Orders includes existing manual create/edit/status/events/receipts/create receipt/void receipt; no business validation, rowversion, FEFO, UoW locks, CSRF or rate limits removed. Report includes existing aggregated cost fields; no report-edit endpoint exists. Notification only existing list/retry failed jobs, no bot-token/config management.
 Frontend operatorAreas includes root/don-hang/bao-cao/thong-bao; dashboard no redirect, routes mount allowed modules. Receipt view/actions available to both staff roles. Content/HomeDisplay/Employees/media governance/product deletion/stock-cost/adjustment/baseline/resolutions stay Owner as before. Read operator-permissions.md updated matrix; older notes saying orders/reports/notifications Owner-only are superseded.
 Validation:15/15 AdminAuthTests SQL-enabled pass on GUID disposable database (expanded list GET access, manual order request reaches validation, notification retry reaches business404, receipts GET allowed, existing Owner restrictions still403). Frontend14/14 Node tests pass including operator route allow/deny; frontend build pass. No live Operator/browser UAT, no real orders/Telegram/R2/SQL production mutations, no test listener started. No migration. Not committed or pushed; VPS still old images. Rebuild/redeploy BOTH images with new version tags to apply, do not restore/reset DB again.
+
+## HomeProducts căn ảnh không phá tệp —30/10/2026
+SiteSectionInput bổ sung optional productImageFrames: dictionary productId→HomeImageFrame. Ví dụ phần JSON:
+```json
+{
+  "productImageFrames": {
+    "12": {
+      "assetId": 34,
+      "desktop": { "fit": "cover", "x": 25, "y": 70, "zoom": 1.3 },
+      "mobile": { "fit": "contain", "x": 50, "y": 50, "zoom": 1 }
+    }
+  }
+}
+```
+Đây là phần bổ sung vào payload CMS đầy đủ, vẫn cần title/assetIds/version/productIds như trước. Desktop bắt buộc khi có frame; mobile null/không gửi kế thừa desktop. Fit contain/cover; X/Y0–100, zoom1–3; contain chỉzoom1. Tối đa50 cấu hình, product phải trong productIds, asset thuộc product; khi có productMainImages phải khớp asset. Reject400 INVALID_IMAGE_FRAME hoặc INVALID_PRODUCT_IMAGE. Kiểm tra cả save/publish trong transaction/UoW cũ; không external HTTP/crop/upload. Schema backward compatible, không migration.
+Field public là cấu hình trình bày, không PII/cost/Identity. GET /content đọc bản công bố như cũ. OpenAPI snapshot docs/openapi/mvp.json là lịch sử trước HomeProducts, chưa tái xuất ở checkpoint này; không dùng snapshot đó để bỏ trường mới. Cần rebuild/restart API rồi xuất lại khi chuẩn bị release.
+
+## API thao tác gộp hoàn thành/thu tiền —30/10/2026
+POST /api/admin/orders/{id}/actions/complete-paid, body {version,reason?}, reason<=200. Staff (Owner/Operator), cookieCSRF/rateAdmin như cácaction cũ. Application dùng CompleteAndReceiveInput, không tham chiếu DTO của API. Cho Confirmed/Preparing/HandedOver/Completed; thiếuversion hiện tại409 trừ trường hợp Completed+đãthu trảhiệntrạng idempotent. Tự chạy handover/xuất kho nếu cần, complete và nhận đủ ItemsSubtotal trong cùng SQLtransaction/businesslock. Mọi validation lô/tồn/phân bổ cũ còn nguyên; lỗi ghi phiếu thu rollback toàn bộ. Không clientamount/receivedtime. Không áp dụng Pending/Cancelled, khôngmigration. UI phải xácnhận thực tế đã nhận hàng/đủtiền; không dùng nút này để chỉ đánh dấu giao hàng. Thao tác complete/receipt riêng vẫn tồn tại.
