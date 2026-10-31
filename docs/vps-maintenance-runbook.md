@@ -121,3 +121,6 @@ Chưa có công cụ migration giữa bucket; không giả định đổi endpoi
 -> API contract -> runbook này. Xem git status trước sửa; giữ mọi thay đổi chưa commit. Không cần và không in secret.
 Ghi rõ test fake hay cloud thật, database nào đã migrate, process nào đang chạy và node nào đã reconcile.
 Không tự tạo Owner mới/reset password/drop development DB. Khi cần credential, cho người dùng nhập tại máy.
+
+## Gói cập nhật3container —31/10/2026
+Gói full-v3 offline đã chuẩn bị: đọc release-full-v3.md để biết checksum/lệnhupdate/rollback. Cập nhật chỉforfit-phase1, giữ /etc/forfit JSON, novastay-net vàkeys/localmedia volumes. API→SSR→web dùngsharednetworknamespace; phảigỡweb/SSR trướcAPIrecreate. ScriptbackupimageIDs,healthHTML+sitemap,rollback2hoặc3dịchvụ; noDBrestore/migration/prune/hostNginxreload. Preflight1.5GiBdisk/650MiBRAM. UserchưachạyupdateVPS, khôngcoi simulation làproductionrollbackđãkiểmchứng.

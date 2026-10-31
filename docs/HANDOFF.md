@@ -1,5 +1,64 @@
 # Tiếp tục dự án ForFitChicken từ đây
 
+## Gói cập nhật ngoại tuyến mới nhất —31/10/2026
+Đã build/đóng gói toàn bộ working tree (API/web/SSR3services) thành
+`backend/ForFitChicken/artifacts/phase1-update/forfit-full-v3-20261031.tar.gz`,245778710bytes.
+SHA256 `989d77637e04ee33b47586bc8a3009c68d2606073d35afae14d309cffd2566de`.
+Đọc docs/release-full-v3.md để lấy lệnh1dòng/upload/rollback và bằng chứng kiểm chứng. Không dùng updateroperator-v2.
+Script mới preflight/checksum/backupimageIDs, recreate đúng networknamespace api→ssr→web, healthcheck SSR,
+rollback về2hoặc3services cũ; giữ config/DB/volumes/hostNginx/dựánkhác. Không migration/SQLrestore/quotareset.
+Linux3container mockAPI runtime và rollback mocks đạt,23frontend+2SSRtests đạt; backend25Commerce+HTTP
+checkpoint trước đạt, API LinuxReleasebuild đạt. Không tạo đơn/cloudmessage thật, chưabrowser/liveVPSUAT.
+Không container thử còn chạy. Artifactsignored, gói khôngchứaenv/secrets/source/DBbackup. Chưaupload/deploy/commit/push.
+
+## Checkpoint mới nhất — đơn thủ công chốt ngay, không Telegram —30/10/2026
+ManualAsync (Phone/Facebook/Zalo/Other) giờ Create + Save item IDs + Reserve FEFO + Confirmed trong cùng
+UoW/transaction/SQL lock. Đặt ConfirmedAt/By, event ManualOrderConfirmed (không giả nhận đã gọi).
+Không tạo NotificationJob cho manual. Website giữ PendingConfirmation/chưa reserved/outbox khi enabled như cũ.
+Giữ nguyên idempotency scope/key: retry đơn cũ trả snapshot cũ, không tự chuyển trạng thái/giữ lại hoặc gửi bot.
+Không migration, không sửa đơn/queue cũ hay thông báo đã gửi. Thiếu hàng/lỗi reserve rollback cả tạo đơn.
+UI tạo thủ công ghi rõ chốt trước khi nhập, nút Tạo đơn & xác nhận, success theo status thật; quay danh sách bỏ
+filter cũ và tìm mã đơn vừa tạo. Lịch sử có nhãn event tiếng Việt. Handover/COD/edit-pending policy không đổi.
+Build frontend clientSSR và22 unit tests đạt;23 CommerceTests SQL GUID disposable đạt0skip, gồm4nguồn
+manual/không outbox/idempotency/race stock/late-save rollback và website outbox cũ. Không Telegram thật,
+không DB kinh doanh/ảnh/VPS; không listener hoặc dừng API người dùng. Chưa browser live UAT.
+Cần rebuild/restart API mới rồi reload frontend; không commit/push/deploy.
+
+## Checkpoint mới nhất — căn ảnh Owner và vị trí giá, 30/10/2026
+
+Đã triển khai căn ảnh không phá tệp gốc trong Trưng bày trang chủ → chọn ảnh chính → Căn ảnh trang chủ.
+Contain/cover, kéo chuột/chạm, slider vị trí/phóng1–3×, desktop/mobile riêng, reset/hủy, áp dụng vào nháp;
+lưu nháp rồi công bố bằng API content/version/UoW cũ. Không upload/re-encode/xóa ảnh hoặc gọi raw R2.
+ProductImageFrames optional JSON trong SiteSectionInput; không migration. Backend kiểm tra <=50, product/asset
+đúng quan hệ, khớp main asset khi có mapping, fit/range hợp lệ trên cả save và publish. Đổi main asset reset frame;
+ảnh gỡ/không khớp thì public dùng contain mặc định. SSR whitelist có field mới, CSS responsive dùng cùng component
+với editor/Owner preview. Ảnh phóng to/chi tiết không bị crop; contain mặc định giữ tương thích nội dung cũ.
+Vùng thông tin dùng tracks tên2 dòng/mô tả3 dòng/tình trạng1 dòng, giá ngay sau mô tả; bỏ margin-top:auto.
+Không ép copy cao bằng gallery; khung gallery4:3 dùng chung editor/public/preview.
+
+Kiểm chứng: frontend strict client+SSR build,22 unit tests và2 SSR mock tests đạt; backend build0warnings,
+20 CommerceTests SQL-enabled đạt,0skip, database GUID disposable. Test mới chứng minh draft/publish frame,
+reject asset sai/range/fit/zoom/null; đồng bộ test HTTP Operator cũ với quyền đã chốt (report/receipts200,
+content403), không đổi policy. Lần chạy đầu19pass/1fail do assertion quyền cũ; chạy lại20/20 đạt.
+Chưa visual/browser drag/touch UAT. Không tạo listener thật/ảnh/đơn, không SQL business/R2/Telegram/VPS,
+không commit/push. Giữ nguyên thay đổi SSR/order chưa commit từ trước.
+
+Cần rebuild/restart backend mới rồi reload frontend trước khi dùng; không tự dừng Visual Studio/API người dùng.
+Frontend phát hiện response bỏ field crop và giữ bản đang nhập, báo cần nâng backend, tránh báo lưu thành công giả.
+Triển khai production phải cập nhật cả API và web/SSR mới theo runbook3service, không dùng gói2service cũ.
+Hướng dẫn/schema JSON: docs/home-display.md và docs/mvp-backend-api.md; OpenAPI snapshot cũ chưa tái xuất.
+
+## Checkpoint mới nhất — nguồn nội dung Owner, 30/10/2026
+
+Đọc `docs/home-display.md` mục “Rà soát nguồn nội dung” trước khi rút gọn giao diện theo góp ý mới.
+Chưa triển khai redesign typography lần này. Giữ title/body/nút Owner; HomeProducts đã đọc linkUrl
+cấu hình (trước đó bị bỏ qua) và form Trưng bày có nhập/kiểm tra đường dẫn. Nội dung website có hướng dẫn
+vị trí hiển thị theo key, ẩn trường ảnh/nút không được consumer dùng nhưng giữ dữ liệu cũ. Usage/SiteSettings
+đánh dấu chưa có vị trí hiển thị. Sản phẩm giải thích dữ liệu dùng chung, lưu có thể cập nhật web ngay,
+isFeatured chỉ fallback Home khi chưa có cấu hình; URL public vẫn ID. Không thay API/schema/dữ liệu.
+Build đạt, 18 tests frontend đạt; SSR mock integration kiểm tra giữ nguyên title/body/linkUrl Owner.
+Không chạy backend thật/SQL/R2/Telegram/VPS, chưa browser Owner UAT. Không commit/push.
+
 Cập nhật **29/10/2026**. Đây là trạng thái hiện hành, thay cho các ghi chú lịch sử trong progress.
 Đọc tiếp `docs/mvp-backend-progress.md`, `docs/mvp-backend-api.md`, `docs/media-security-progress.md`.
 Giữ mọi thay đổi chưa commit. Không tự commit/push/drop development DB hoặc tạo/reset Owner.
@@ -299,3 +358,55 @@ User Certbot renew --cert-name4fitchicken.io.vn --dry-run --run-deploy-hooks out
 
 ## Git checkpoint —30/10/2026
 Chuẩn bị commit theo nhóm Operator backend/UI, update bundle script, HTTP ACME/domain HTTPS/renewal và docs. Không push. Đã rà soát candidate paths và mẫu credentials: không phát hiện token/private-key/known exposed credential; không track env/private config/.certs/backup/image archives. File Nginx chỉ chứa đường dẫn chứng chỉ, không chứa nội dung khóa. .gitattributes bắt buộc LF cho shell scripts Linux. Kiểm thử chức năng theo checkpoint trước (15auth/14frontend/build), không chạy lại test chỉ để commit. HTTPS/renewal bằng chứng từ output người dùng; các UAT còn thiếu vẫn giữ trong readiness docs.
+
+## SSR implementation checkpoint1 —30/10/2026
+User approved public SSR keepingReact/Vite/ASP.NET, ID productURLs, sales pages first, same UI, no SearchConsole yet. IN PROGRESS, not production deployed. Current working tree adds public-loader/SSR entry/Node server/SEO, initial data support and admin lazy split; no API/DB changes. Server GETs only anonymous public endpoints, bootstrap uses field whitelist, no cookies/PII/auth forwarded. 404 product/unknown routes and503 upstream failures distinct; dynamic sitemap/robots routes planned/test pending. Need complete hydration/cart handling, route transition metadata, Docker/nginx integration and tests before ready. Do NOT deploy half-complete state. No commit/push. Existing production app continues unaffected.
+
+## SSR checkpoint2 —30/10/2026
+Client+SSR builds pass. Initial client bundle321.86KB vs previous411.79KB (different source checkpoint, not CWV proof); admin97KB+CSS lazy chunk. Mock-only NodeSSR tests2 passed: publicHTML/head/JSONLD, fresh sitemap after hide,404/503, robots MIME, private route doesn't fetch public API or propagate cookies, privatefield stripped, pagination ceiling503. No SQL/R2/Telegram use. Windows sandbox blocked loopback fetch; tests passed with approved local access; all own test child servers closed.
+SSR Node service bounded4 renders/10s data deadline, public data allowlist, no stale HTMLcache, catalog pagination capped2000 rows fail503 beyond (not silent sitemap omissions). Current loader still preloads published catalog/content/gym for client route compatibility; pending further tuning/in-flight collapse and browser hydration/visual QA. Added Docker SSR service+nginx overlay, not deployed, must build/test images and update rollback flow for3services before rollout. Existing2service bundle is NOT suitable to deploy SSR overlay automatically. Old CSR Dockerfile corrected dist/client copy for compatibility. Need final tests, XSS cases, document staging limits and public readiness.
+
+## SSR public implementation checkpoint3 —30/10/2026
+Implemented local sales-page SSR preservingReact/Vite/components/ID routes, no API/schema changes. Read docs/seo-ssr.md as current SEO/runtime reference (supersedes CSR-only architecture notes). Initial HTML includes title/description/canonical/robots/OG/JSON-LD and real public content, header statuses404/503, dynamic XML sitemap/textrobots. Public DTO whitelist, safe bootstrap/script escaping, no auth/cookie forwarding to data loader. Anonymous in-flight GET coalescing only (no retained stale snapshots), bounded4render/data10s. Admin lazyJS/CSS; cart restored after hydration, private routesCSR/noindex, ProductImage remains visible withoutJS using noscript override. Canonical origin fixed to owned domain; schema prices/SKUs/availability actualAPI. Font preconnect/stylesheet replaces CSS@import; main product photo fetchPriorityhigh. No invented business/nutrition/certifications/reviews.
+Evidence: strict build/clientSSR passed;14existingfrontendtests+2SSR integration tests passed with mock public API on disposable local listeners; SSR tests also script-injection escaping/privatefield exclusion/hidden404/freshsitemap/upstream503/private route isolation. Linux images forfit-ssr/web:seo-ssr-v1 build passed; non-root Linux render HTML/JSONLD smoke, nginx-t and compose overlay configquiet passed. No productionAPI/SQL/R2/Telegram access, all --rm containers/mock listeners closed. No backend tests rerun because backend untouched.
+NOT deployed or offline-packaged, not committed/pushed. Current VPS still CSR. Three-service update requires new updater/rollback preserving namespace ordering; old operator-v2 script insufficient. Browser hydration/cart/nav/visual mobile QA, Lighthouse/fieldCWV/RichResults/SearchConsole and liveUAT remain unverified; don't claim metrics/SEO rank. Draft SSR service256MiB/cpu.5 needs loadtest on2CPU sharedVPS; API sharedIP rate limits unchanged, catalogcap2000 fails503. Full public dataset preloaded for route compatibility; large-catalog optimization deferred. Knowledge/blog intentionally not created. Next: staging/browser/load validation then release-specific3service packaging when requested, no DBrestore/migrations or secret changes.
+
+Final SSR checkpoint: mock tests also confirm updated prices reflected next request, zero-stock remains200/OutOfStock; non-detail API404 mapped503. Sitemap fetch onlyproducts, no unrelated content/gym dependency. Latest build and2SSR tests pass after final code, no runtime listener left. No deploy/commit/push. Main initial JS322.39KB/gzip101.78; admin97.08KB/gzip25.46 separate; these bundle sizes are not CWV measurements.
+Final metadata correction: SSR404 initial status/path exposed only within client store so client head update preserves404 title/noindex; leaving404 route discards empty seed and reloads public dataset. Final source strict clientSSR build passed, initial JS322.48KB/gzip101.82. Linux image build/smoke evidence above was before this small head-state/EOF cleanup; rebuild release images from final working tree before any packaging/deploy. No claim browser hydration validated. All changes remain uncommitted.
+
+## Đơn hàng UX checkpoint1 —30/10/2026
+Đang sửa frontend theo yêu cầu: OrderDialog tách thành admin-order-detail.tsx, giữ modal để không thay đổi route/làm mất filter danh sách. Desktop2 cột thông tin/việc cần làm, mobile ưu tiên hành động, trạng thái giao vàCOD riêng +3 sốtiền,1primary action,secondarydetails,lịch sử thu gọn. Backend/API/schema không đổi. Confirmed vẫn có bàn giao trực tiếp ở Thao tác khác. Số thu chỉ cộng phiếu hiệu lực, không cho thu từng phần (backend thu đủ1lần). Không tự coi giao xong=đã nhận tiền.
+Snapshot order/receipts/events chỉ cập nhật khi cả3GET thành công; thuCOD không hiện khi loading/lỗi/khôngquyền/đãthu. POST+refresh khóa bằng busy/ref;409/5xx/mất mạng yêu cầu tải lại, không replay mutation; giữ lời lỗi backend. Chưa kiểm chứng browser; không dùng đơn/PII thật. 18tests/build đạt trước chốt race/close guard, cần chạy lại sau thay đổi cuối. Modal thêm closeDisabled optional mặc địnhfalse; labelCompleted đổiGiao thành công cho rõ nghĩa. Chưa commit/push/deploy; giữ nguyên SSR workingtree.
+
+## Đơn hàng UX checkpoint2 —30/10/2026
+Hoàn thành local: dialog rộng,headersticky,desktop thôngtin+Việc cần làm,mobile action trước,đầu trang giao hàng/COD+tiềnhàng/đãghi/chưaghi. Giữmodal hiệncó để không thayroute hoặc mấtfilter.1primary,secondarydetails;formnhãn cụ thể,ghi chúoptional,trừhủy bắtbuộc;successnói rõ kếtquả. Lịchsửthu vàđơn thu gọn; Completed labelGiao thành công. Không thêm gộpgiao+thu hoặc thao tác nghiệpvụ mới.
+GET snapshot3nguồn chỉcommit khiđủ;raceGET dùngsequence,timeout15s;receiptẩn lúcchưabiết/lỗi/đãthu/khôngquyền. Submitref chốngdoubleclick,busy quaPOST+refresh,409/5xx/mấtmạng không tựreplay,force tải lại; lỗi409 giữmessagebackend. Modal closeDisabled optional khóađóng khiPOST/refreshbusy,initialGET chođóngvàabort. Không sửa useResource/API/backend/schema.
+Kiểmchứng18/18frontendtests (4workflowtests mới:phântáchgiao/thu,hếttrạngtháichothu,phiếuvôhiệu,primary/secondary giữhandovertrựctiếp),2SSRmocktests+strictclientSSRbuild đạt. ThayCSS specificity saubuild để thắngadmin-shell; chưabrowservisual/hydration/mobile/UATđơn thật, không giả địnhđãnghiệmthu. Không chạySQL/R2/Telegramproduction;khôngtestlistenercònchạy. Docs/admin-workflows và frontend-progress cậpnhật. Chưacommit/push/deploy;SSRworkingtree cònnguyên,khôngdùnggóicũ đểdeploySSR.
+
+## Storefront typography đã áp dụng —30/10/2026
+Xem checkpoint cuối docs/frontend-progress.md. Bản rà soát nội dung trước vẫn đúng nguồn dữ liệu, nhưng HomeProducts.title hiện là dòng phụ dưới H2 cố định Sản phẩm nổi bật (không còn H2). Owner form đã đổi nhãn/hướng dẫn. ProductShowcase bỏ nhãn lặp, hiển thị trọng lượng cạnh giá, mô tả clamp3 dòng và ảnh preview nhỏ hơn; chi tiết/QuickBuy giữ dữ liệu đầy đủ. Banner nối cụm hai từ cuối khi ngắn, tăng độ đọc nút, bỏ khoảng trống mobile do min-height/padding cũ. Giữ nguyên CMS, giá, tồn, ảnh và liên kết Owner. Build và20 unit tests đạt. Visual QA chưa hoàn tất do computer-use bị dừng vì không xác định được URL; fixture đã dừng, không tác động API thật/VPS. Không commit/push.
+Kiểm chứng cuối:2/2 SSR integration đạt, gồm nguồn nội dung Owner và dữ liệu sản phẩm; tổng22 kiểm thử đạt. Không coi đây là visual/mobile UAT.
+
+## Brand assets mới nhất —30/10/2026
+Header/footer/favicon dùng ảnh chuẩn frontend/public/brand/4fit-approved.jpg, copy nguyên vẹn từ ảnh người dùng gửi. BrandArtwork thêm clipPath cho từng vùng để loại đầu nĩa lọt thành4chấm trong wordmark; bỏ SVG alpha-filter gây viền sáng. Footer dùng nền sáng gọn để navy gốc không chìm. Favicon.svg nhúng chính symbol tay+nĩa từ master JPEG, index icon URL có version20261030. Không dùng favicon chữ F cũ. Asset cũ giữ để rollback; không AI tái vẽ, không thay CMS/R2/SQL/API. Build strict frontend/clientSSR đạt, chưa browser visual/favicon cache UAT. Không commit/push/deploy. Khi tiếp tục không khôi phục override logo background transparent hoặc alpha feColorMatrix cũ.
+
+## Mobile/dải cam kết mới nhất —30/10/2026
+HomeTransition CSS đã thay grid nhiều hàng bằng1hàng cuộn ngang native khi hẹp, mỗi mục2 dòng13px, icon21px, padding10–12px. Giữ5ý, không link giả/autoplay. Mobile hero copy Owner đầy đủ, khoảng cách gọn, body15px, CTA chính14px bên cạnh link phụ rút nhãn Câu chuyện (desktop vẫn nhãn đầy đủ). Không chỉnh dữ liệu CMS. Build/SSR mock kiểm tra được, chưa visual/device UAT. Docs frontend-progress ghi chi tiết, chưa commit/push/VPS.
+
+## Mobile5điểm nổi bật — quyết định mới nhất30/10/2026
+HomeTransition mobile nay là2hàng3–2, chỉ icon+shortTitle, giấu body/fullTitle bằngCSS; không còn cần vuốt ngang. Container query<=700px của section áp dụng cả public/mobile Owner preview. Desktop vẫn giữ tên+mô tả1hàng, tablet>700 giữ rail. Không sửa CMS/giá/ảnh/backend. Build clientSSR đạt, chưa visual/device UAT; không listener/commit/push/deploy. Checkpoint rail mobile trước đây đã được thay thế.
+
+## Cập nhật mobile mới nhất:5mục1hàng —30/10/2026
+HomeTransition mobile đổi3–2 thành grid5cột, icon+nhãn ngắn12px, không body/scroll. Các nhãn có thể xuống2dòng trong cùng cột để tránh co chữ quá nhỏ. Desktop vẫn tên+mô tả; preview Owner theo chiều rộng container. Build clientSSR đạt; chưa visual mobile thực tế. Không commit/push/VPS. Quyết định này thay3–2 trước đó.
+
+## Fluid banner/5icon — mới nhất30/10/2026
+Lề hero đổi từ centered max1280 sang clamp16px/4%/80px, không ảnh hưởng header hay trang khác. Thanh5ý cũng dùng gutter đó, width hẹp hơn viewport; list5cột fluid, không fixed rail/cardwidth/1280cap, paddingdọc8px. Icon/font co giãn có giới hạn; container<=1050px dùng short labels cùng1hàng, rộng hơn giữbody. Build clientSSR đạt, chưa visual device/viewport measurement. Không CMS/API/DB/VPS hoặc commit/push. Chi tiết trong frontend-progress cuối.
+
+## Đính chính thanh5icon —30/10/2026
+Section HomeTransition phải full-width100%, KHÔNG inset/rút ngắn chiều ngang. Chỉ làm mỏng theo chiều dọc (padding6px); gutter nằm trong danh sách icon. Giữ5cộtresponsive và lề hero mới. Build đạt, chưa visual device UAT. Thay mô tả section thu hẹp ở checkpoint trước; không commit/push/VPS.
+
+## Checkpoint hoàn thành + đã nhận tiền —30/10/2026
+Nút mới trong Việc cần làm, không dưới Thao tác khác; từ Confirmed/Preparing/HandedOver nếu receiptsknown/unpaid/cóquyền. Tick xácnhậnthựctếgiao+đủtiền, note200. APIactions/complete-paid dispatch ApplicationCompleteAndReceiveAsync (DTO Application riêng), handover nếu cần→complete→receipt đủtiền trong1UoW/SQLlock; Coremethods reuse không nestedtransactions. Pending/Cancelledchặn, version409, completed+paidretry trảhiệntrạng; lỗi receipt rollback cảstock/lịchsử/status. Không Telegram/fee/migration, riêngcomplete/receiptvẫngiữ.
+Buildfrontend strict+23unit đạt;25CommerceTestsSQLGUIDđạt0skip,4allowedstates/stale/retry/receiptfailure rollback; HTTPdispatchcheck thêm sau. KhôngSQLbusiness/R2/Telegram/VPS, chưabrowserUAT. CầnrestartAPI mới/reloadweb; khôngcommit/push. Quyết định mới này thay ghi chú trước rằng chưa có thao tác gộp giao+thu.
+
+Kiểm chứng cuối thao tác gộp (31/10/2026): HTTPcontrollerdispatch POST actions/complete-paid với cookie+CSRF đạt, phiếu thu duy nhất; focused rerun1/1 đạt sau suite25/25 SQLCommerce.23frontendunit+clientSSRbuild đạt. Không chạy listener thật, chưa browserUAT. Tổng48kiểmthử khácnhau đạt; focusedrerun không tính thêmtestmới. Không commit/push/VPS.
