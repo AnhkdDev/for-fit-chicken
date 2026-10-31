@@ -1,0 +1,15 @@
+FROM node:24-bookworm-slim AS build
+WORKDIR /src
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+FROM node:24-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production PORT=8082 SSR_HOST=127.0.0.1 PUBLIC_API_ORIGIN=http://127.0.0.1:8080
+COPY frontend/package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=build /src/dist/ ./dist/
+COPY frontend/server/ ./server/
+USER node
+CMD ["node","server/index.mjs"]

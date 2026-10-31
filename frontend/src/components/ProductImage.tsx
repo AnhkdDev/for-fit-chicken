@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 export function ProductImage({
   src,
   alt,
   priority = false,
+  imageClassName,
+  imageStyle,
 }: {
   src: string;
   alt: string;
   priority?: boolean;
+  imageClassName?: string;
+  imageStyle?: CSSProperties;
 }) {
   const [state, setState] = useState('loading');
   const [attempt, setAttempt] = useState(0);
@@ -15,13 +19,14 @@ export function ProductImage({
       <img
         key={attempt}
         src={src}
+        className={imageClassName}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
         fetchPriority={priority ? 'high' : 'auto'}
         onLoad={() => setState('ready')}
         onError={() => setState('error')}
-        style={{ opacity: state === 'ready' ? 1 : 0 }}
+        style={{ ...imageStyle, opacity: state === 'error' ? 0 : 1 }}
       />
       {state === 'loading' && (
         <span className="product-image-status" role="status">

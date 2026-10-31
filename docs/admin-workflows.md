@@ -31,7 +31,8 @@ Kiểm chứng/checklist cuối cập nhật tại frontend-progress.md.
 5. Đơn hàng: tab Chờ gọi/Chờ chuẩn bị/Đang chuẩn bị/Đang giao; tìm mã hoặc phone. Chi tiết có link gọi và
    sửa người nhận khi pending. Sau gọi mới Xác nhận. Thu COD là thao tác Owner riêng sau bàn giao/hoàn tất.
 6. Tạo đơn thủ công: chọn nguồn, người nhận, tìm SKU theo tên/mã, thêm quantity. Giá do backend tính lại;
-   không tự giữ tồn. Lần gửi chưa rõ kết quả phải kiểm tra danh sách, không tạo đơn thay thế ngay.
+   đơn mới xác nhận và giữ FEFO ngay khi tạo, không cần bấm đã gọi và không gửi Telegram. Thiếu hàng thì không tạo đơn.
+   Lần gửi chưa rõ kết quả phải kiểm tra danh sách, không tạo đơn thay thế ngay. Tạo xong danh sách tìm mã đơn vừa tạo, bỏ filter cũ.
 7. Nội dung: chọn khu vực → nhập/chọn ảnh/xếp thứ tự → Lưu bản nháp → Owner công bố bản đã lưu.
    Preview chỉ kiểm tra nội dung, không mô phỏng chính xác mọi bố cục storefront.
 
@@ -51,3 +52,11 @@ Sau mở UI thật cần nghiệm thu với Owner tự nhập credentials; khôn
 - Login form logo/căn giữa/sans/input16px/hiện mật khẩu/fieldset busy; giữ Secure cookie, CSRF và auth endpoint cũ. Không tạo/reset account.
 - Browser fixture xác minh product409 hiện title+link; media409 hiện ngay trong modal; logout vào login, desktop và390px không overflow. Không đăng nhập Owner thật, không xóa sản phẩm/lô/ảnh thật. Không chạy lại backend tests vì chỉ đổi frontend.
 - Preview admin-login-revised.jpg. Chưa commit/push; dừng fixture sau test, giữ server người dùng. Dòng React DevTools là thông báo phát triển, không là lỗi.
+
+## Đơn hàng UX checkpoint2 —30/10/2026
+Hoàn thành local: dialog rộng,headersticky,desktop thôngtin+Việc cần làm,mobile action trước,đầu trang giao hàng/COD+tiềnhàng/đãghi/chưaghi. Giữmodal hiệncó để không thayroute hoặc mấtfilter.1primary,secondarydetails;formnhãn cụ thể,ghi chúoptional,trừhủy bắtbuộc;successnói rõ kếtquả. Lịchsửthu vàđơn thu gọn; Completed labelGiao thành công. Không thêm gộpgiao+thu hoặc thao tác nghiệpvụ mới.
+GET snapshot3nguồn chỉcommit khiđủ;raceGET dùngsequence,timeout15s;receiptẩn lúcchưabiết/lỗi/đãthu/khôngquyền. Submitref chốngdoubleclick,busy quaPOST+refresh,409/5xx/mấtmạng không tựreplay,force tải lại; lỗi409 giữmessagebackend. Modal closeDisabled optional khóađóng khiPOST/refreshbusy,initialGET chođóngvàabort. Không sửa useResource/API/backend/schema.
+Kiểmchứng18/18frontendtests (4workflowtests mới:phântáchgiao/thu,hếttrạngtháichothu,phiếuvôhiệu,primary/secondary giữhandovertrựctiếp),2SSRmocktests+strictclientSSRbuild đạt. ThayCSS specificity saubuild để thắngadmin-shell; chưabrowservisual/hydration/mobile/UATđơn thật, không giả địnhđãnghiệmthu. Không chạySQL/R2/Telegramproduction;khôngtestlistenercònchạy. Docs/admin-workflows và frontend-progress cậpnhật. Chưacommit/push/deploy;SSRworkingtree cònnguyên,khôngdùnggóicũ đểdeploySSR.
+
+## Nút hoàn thành và đã nhận tiền —30/10/2026
+OrderDialog hiển thị complete-paid riêng trong Việc cần làm khi đãxácnhận/đangchuẩnbị/đanggiao vàchưađãthu. Checkbox xác nhận giao thành công + thực nhận đủ tiền bắt buộc, note200; error409 buộc tải lại, không tự replay POST. Hệ thống gộp handover nếu cần/complete/thu tiền trong1giao dịch, không cần bấm từng bước; nút từngbước vẫn giữ. Backendghi nhận đủ tiềnhàng, không tự thu shippingfee. Chỉ dùng khi công việc thực tế đã xong. ChưabrowserUAT; kiểmthửSQLtransaction/rollback đạt. Cầnbackend mới.

@@ -1,6 +1,7 @@
 import { useId } from 'react';
 
-// Remove the near-white background at render time, without recoloring the brand.
+// Clip explicitly: viewBox alone can expose fork tips in the wordmark's letterbox area.
+// Multiply on light surfaces removes the white visually without an alpha-filter fringe.
 export function BrandArtwork({
   part = 'full',
   className,
@@ -8,25 +9,37 @@ export function BrandArtwork({
   part?: 'full' | 'symbol' | 'wordmark';
   className?: string;
 }) {
-  const backgroundFilter = `logo-background-${useId().replace(/:/g, '')}`;
+  const clipId = `logo-window-${useId().replace(/:/g, '')}`;
   const viewBox =
     part === 'symbol'
       ? '512 309 596 751'
       : part === 'wordmark'
-        ? '420 1105 782 364'
-        : '420 309 782 1160';
+        ? '400 1085 810 385'
+        : '400 300 810 1170';
   return (
-    <svg className={className} viewBox={viewBox} aria-hidden="true" focusable="false">
+    <svg
+      className={className}
+      viewBox={viewBox}
+      aria-hidden="true"
+      focusable="false"
+      style={{ mixBlendMode: 'multiply' }}
+    >
       <defs>
-        <filter id={backgroundFilter} colorInterpolationFilters="sRGB">
-          <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -5 -5 -5 0 14.7" />
-        </filter>
+        <clipPath id={clipId}>
+          {part === 'wordmark' ? (
+            <rect x="400" y="1085" width="810" height="385" />
+          ) : part === 'symbol' ? (
+            <rect x="490" y="300" width="630" height="770" />
+          ) : (
+            <rect x="400" y="300" width="810" height="1170" />
+          )}
+        </clipPath>
       </defs>
       <image
-        href="/brand/4fit-orange-original.png"
+        href="/brand/4fit-approved.jpg"
         width="1620"
         height="1620"
-        filter={`url(#${backgroundFilter})`}
+        clipPath={`url(#${clipId})`}
       />
     </svg>
   );

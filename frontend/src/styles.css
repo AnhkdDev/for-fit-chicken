@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;450;500;550;600;650;700;800&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
 :root {
   font-family: 'Be Vietnam Pro', sans-serif;
   color: #3b2b22;
@@ -339,9 +338,10 @@ summary:focus-visible {
 footer .brand-logo,
 .login-art .brand-logo,
 .sidebar-brand > .brand-logo {
-  background: #fff2dd;
+  background: #fffaf2;
   padding: 9px 13px;
   border-radius: 8px;
+  isolation: isolate;
 }
 .sidebar-brand {
   padding-left: 0;
@@ -4083,8 +4083,6 @@ progress::-webkit-progress-value {
 .product-card > .product-image { flex-shrink: 0; width: 100%; }
 .product-card > .product-bottom { margin-top: auto; }
 .product-card > p { margin-bottom: 20px; }
-/* Original orange logo: no tint or blend that changes source colors. */
-.brand-logo svg { mix-blend-mode: normal; }
 /* Larger banner copy; let text determine minimum height on narrow screens. */
 .hero-copy { width: 44%; max-width: 560px; }
 .hero h1 { font-size: clamp(40px,3.6vw,60px); line-height: 1.15; margin-bottom: 22px; }
@@ -4103,21 +4101,6 @@ progress::-webkit-progress-value {
  .hero-content { padding-top: 32px; padding-bottom: 100px; }
 }
 
-/* Let the logo sit directly on its surrounding surface. */
-footer .brand-logo {
-  background: #ffffff;
-  padding: 8px 14px;
-  border-radius: 14px;
-  display: inline-flex;
-}
-
-.login-art .brand-logo,
-.sidebar-brand > .brand-logo {
-  background: #ffffff;
-  padding: 8px 12px;
-  border-radius: 14px;
-  display: inline-flex;
-}
 /* Home is a teaser; full CMS story remains on /cau-chuyen. */
 .discovery-copy .discovery-excerpt {
  display: -webkit-box;
@@ -4125,4 +4108,52 @@ footer .brand-logo {
  -webkit-line-clamp: 4;
  overflow: hidden;
  overflow-wrap: anywhere;
+}
+/* Simplified storefront hierarchy. CMS text remains data, not CSS-generated content. */
+.hero h1 { font-size: clamp(36px, 3.2vw, 52px); line-height: 1.2; text-wrap: balance; overflow-wrap: anywhere; }
+.hero p { font-size: 16px; line-height: 1.75; max-width: 42ch; }
+.hero .button, .hero .text-link { font-size: 16px; line-height: 1.5; min-height: 44px; }
+.hero .text-link { display: inline-flex; align-items: center; gap: 8px; }
+.hero .button-row { flex-wrap: wrap; gap: 12px 22px; }
+.hero .eyebrow { font-size: 12px; letter-spacing: .1em; }
+@media (max-width: 1100px) {
+  .hero { height: auto; min-height: 0; }
+  .hero-content { padding-top: 28px; padding-bottom: 28px; height: auto; min-height: 0; }
+  .hero-copy { width: 100%; max-width: 560px; }
+  .hero-foot { display: none; }
+}
+@media (max-width: 700px) {
+  .hero h1 { font-size: clamp(30px, 7vw, 38px); margin-bottom: 16px; }
+  .hero p { max-width: none; margin-bottom: 20px; }
+  .hero .eyebrow { font-size: 12px; margin-bottom: 16px; }
+  .hero .button-row { align-items: flex-start; }
+  .hero .button, .hero .text-link { font-size: 16px; }
+  .hero .button { padding: 12px 18px; }
+}
+/* Shared reading sizes on customer pages; leave the admin shell untouched. */
+.storefront-main .page-intro > p, .storefront-main .discovery-copy > p { font-size: 16px; line-height: 1.75; }
+.storefront-main .story-page-gallery .story-wide { max-height: min(60svh, 480px); object-fit: contain; }
+/* Compact mobile hero: retain Owner copy; shorten only the fixed secondary label. */
+.hero-story-label-short { display: none; }
+@media (max-width: 700px) {
+  .hero-content { padding-top: 22px; padding-bottom: 22px; }
+  .hero .eyebrow { font-size: 11px; letter-spacing: .08em; margin-bottom: 12px; }
+  .hero h1 { font-size: clamp(28px, 7vw, 34px); line-height: 1.25; margin-bottom: 14px; }
+  .hero p { font-size: 15px; line-height: 1.65; margin-bottom: 18px; }
+  .hero .button-row { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 12px; align-items: center; }
+  .hero .button, .hero .text-link { font-size: 14px; min-height: 44px; margin: 0; }
+  .hero .button { width: 100%; min-width: 0; padding: 12px; justify-content: center; text-align: center; }
+  .hero .button > svg { display: none; }
+  .hero .text-link { justify-content: center; gap: 5px; }
+  .hero-story-label-full { display: none; }
+  .hero-story-label-short { display: inline; }
+  .home-products header { margin-bottom: 18px; }
+}
+/* Fluid home gutters: do not inherit the centered 1280px marketing container. */
+.hero { --home-inline-gutter: clamp(16px, 4%, 80px); }
+.hero > .container.hero-content {
+  width: calc(100% - var(--home-inline-gutter) - var(--home-inline-gutter));
+  max-width: none;
+  margin-inline: auto;
+  padding-inline: 0;
 }

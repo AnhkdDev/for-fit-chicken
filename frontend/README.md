@@ -76,3 +76,6 @@ Tách thêm theo module khi mở rộng; không gọi adapter R2 trực tiếp t
 - Admin dùng CSS độc lập src/admin.css, storefront giữ concept C. Chi tiết và giới hạn kiểm chứng ở ../docs/admin-workflows.md.
 - npm test hiện gồm 7 tests: cart và Vietnamese product slug. UI fixtures vẫn không ghi backend thật.
 
+
+## SSR public sales pages —30/10/2026
+Build now emits dist/client and dist/server (not old dist root). npm run start:ssr starts built Node renderer; set server-only PUBLIC_API_ORIGIN to trusted public API origin. npm run dev / dev:fixtures remain CSR workflows. npm run preview is CSR-only static preview at dist/client. Build first then npm run test:ssr for self-contained HTTP/mocked-API tests; never start the local copied production-ledger backend for this check. New integration: deploy/phase1/compose.ssr.yaml over existing compose.images.yaml, Dockerfile.ssr + Dockerfile.web-ssr + nginx-ssr.conf. Do not deploy with the old two-service updater; see docs/seo-ssr.md for staging/rollback gates.

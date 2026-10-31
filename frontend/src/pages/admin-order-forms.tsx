@@ -96,13 +96,20 @@ function RecipientFields({
     </>
   );
 }
-export function ManualOrder({ close, saved }: { close: () => void; saved: () => void }) {
+export function ManualOrder({
+  close,
+  saved,
+}: {
+  close: () => void;
+  saved: (orderNumber: string) => void;
+}) {
   const [products, setProducts] = useState<Product[]>();
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [lines, setLines] = useState<{ variantId: number; quantity: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState('');
+  const [resultStatus, setResultStatus] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const attempt = useRef<{ payload: string; key: string } | undefined>(undefined);
   const form = useRef<HTMLFormElement>(null);
@@ -135,7 +142,7 @@ export function ManualOrder({ close, saved }: { close: () => void; saved: () => 
   function requestClose() {
     if (busy) return;
     if (result) {
-      saved();
+      saved(result);
       return;
     }
     if (
@@ -172,10 +179,11 @@ export function ManualOrder({ close, saved }: { close: () => void; saved: () => 
     setBusy(true);
     setError('');
     try {
-      const r = await send<{ orderNumber: string }>('/admin/orders', 'POST', data, {
+      const r = await send<{ orderNumber: string; status: string }>('/admin/orders', 'POST', data, {
         'Idempotency-Key': attempt.current!.key,
       });
       setResult(r.orderNumber);
+      setResultStatus(r.status);
       setUncertain(false);
     } catch (e) {
       setUncertain(!(e instanceof ApiError) || e.status >= 500);
@@ -188,8 +196,12 @@ export function ManualOrder({ close, saved }: { close: () => void; saved: () => 
     <Modal title="Tạo đơn thủ công · COD" close={requestClose}>
       {result ? (
         <>
-          <Success>Đã tạo đơn {result}. Đơn đang chờ gọi xác nhận, chưa giữ hàng.</Success>
-          <button className="button" onClick={saved}>
+          <Success>
+            {resultStatus === 'Confirmed'
+              ? `Đã tạo đơn ${result}. Đơn đã xác nhận và giữ hàng, có thể chuyển sang chuẩn bị. Không gửi thông báo Telegram.`
+              : `Đã ghi nhận đơn ${result}. Mở chi tiết để kiểm tra trạng thái; không tạo lại đơn mới.`}
+          </Success>
+          <button className="button" onClick={() => saved(result)}>
             Xong · về danh sách
           </button>
         </>
@@ -303,13 +315,14 @@ export function ManualOrder({ close, saved }: { close: () => void; saved: () => 
               </b>
             </p>
             <p className="admin-help">
-              Backend tính lại giá khi tạo. Đơn chờ xác nhận chưa giữ tồn; chỉ xác nhận sau khi đã
-              liên hệ khách.
+              Chỉ tạo khi đã chốt với khách. Hệ thống tính lại giá, xác nhận và giữ hàng ngay khi
+              tạo; không cần xác nhận đã gọi và không gửi Telegram. Nếu không đủ hàng, đơn sẽ không
+              được tạo.
             </p>
           </fieldset>
           <div className="button-row">
             <button className="button" disabled={busy || !lines.length || !products}>
-              {busy ? 'Đang tạo…' : 'Tạo đơn chờ xác nhận'}
+              {busy ? 'Đang tạo…' : 'Tạo đơn & xác nhận'}
             </button>
             <button type="button" className="small-button" disabled={busy} onClick={requestClose}>
               Đóng

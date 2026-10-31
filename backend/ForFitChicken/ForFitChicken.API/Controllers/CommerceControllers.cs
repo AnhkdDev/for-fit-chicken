@@ -135,7 +135,9 @@ public sealed class AdminOrdersController(OrderService orders) : StaffController
     public Task<OrderView> Edit(long id, OrderEditInput input, CancellationToken token) => orders.EditAsync(id, input, Actor, token);
     // "action" is a reserved MVC route value; use a non-reserved parameter name.
     [HttpPost("{id:long}/actions/{command}")]
-    public Task<OrderView> Transition(long id, string command, OrderActionInput input, CancellationToken token) => orders.TransitionAsync(id, command, input.Version, input.Reason, Actor, token);
+    public Task<OrderView> Transition(long id, string command, OrderActionInput input, CancellationToken token) => command == "complete-paid"
+        ? orders.CompleteAndReceiveAsync(id, new(input.Version, input.Reason), Actor, token)
+        : orders.TransitionAsync(id, command, input.Version, input.Reason, Actor, token);
     [HttpGet("{id:long}/receipts")]
     public Task<ReceiptView[]> Receipts(long id, CancellationToken token) => orders.ReceiptsAsync(id, token);
     [HttpPost("{id:long}/receipts")]

@@ -48,6 +48,38 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
         Assert.Equal("PRODUCT_IN_USE", (await Assert.ThrowsAsync<BusinessException>(()=>used.Run(p=>p.GetRequiredService<CatalogService>().DeleteAsync(used.Product.Id,used.Product.Version!,used.Actor,default)))).Code);
     }
     [SqlServerFact]
+    public async Task Display_ImageFrames_DraftPublishAndRejectInvalidConfiguration()
+    {
+        await using var s = await Setup();
+        var current = (await s.Run(p => p.GetRequiredService<ContentReportService>().ContentAsync(false, default))).SingleOrDefault(x => x.SectionKey == "HomeProducts");
+        var asset = s.Product.Images[0].AssetId;
+        var frame = new HomeImageFrame(asset, new("cover", 25, 70, 1.3m), new("contain"));
+        var input = new SiteSectionInput("Căn ảnh " + Guid.NewGuid(), null, [], null, null, current?.Version,
+            [s.Product.Id], true, new() { [s.Product.Id] = asset }, new() { [s.Product.Id] = frame });
+        var saved = await s.Run(p => p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts", input, s.Actor, default));
+        Assert.Equal(frame, saved.Content.ProductImageFrames![s.Product.Id]);
+        Assert.DoesNotContain(await s.Run(p => p.GetRequiredService<ContentReportService>().ContentAsync(true, default)), x => x.Content.Title == input.Title);
+        var badFrames = new[] {
+            frame with { AssetId = long.MaxValue },
+            frame with { Desktop = new("cover", -1) },
+            frame with { Desktop = new("cover", 50, 50, 4) },
+            frame with { Desktop = new("contain", 50, 50, 2) },
+            frame with { Desktop = new("invalid") },
+            frame with { Desktop = null! },
+            frame with { Mobile = new("cover", 50, 101) },
+        };
+        foreach (var bad in badFrames) {
+            var failure = await Assert.ThrowsAsync<BusinessException>(() => s.Run(p => p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts", input with {
+                Version = saved.Version, ProductImageFrames = new() { [s.Product.Id] = bad }
+            }, s.Actor, default)));
+            Assert.Contains(failure.Code, new[] { "INVALID_IMAGE_FRAME", "INVALID_PRODUCT_IMAGE" });
+        }
+        await s.Run(p => p.GetRequiredService<ContentReportService>().PublishAsync("HomeProducts", saved.Version!, s.Actor, default));
+        var published = Assert.Single(await s.Run(p => p.GetRequiredService<ContentReportService>().ContentAsync(true, default)), x => x.SectionKey == "HomeProducts");
+        Assert.Equal(frame, published.Content.ProductImageFrames![s.Product.Id]);
+    }
+
+    [SqlServerFact]
     public async Task Display_MainImageMustBelongToSelectedProduct()
     {
         await using var s = await Setup();
@@ -72,6 +104,113 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
         Assert.Equal(new[]{s.Product.Id}, published.Content.ProductIds);
         await s.Run(p => p.GetRequiredService<CatalogService>().SaveAsync(s.Product.Id, s.ProductInput with { IsPublished=false, Version=s.Product.Version }, s.Actor, default));
         Assert.Equal("PRODUCT_UNAVAILABLE", (await Assert.ThrowsAsync<BusinessException>(() => s.Run(p => p.GetRequiredService<ContentReportService>().SaveSectionAsync("HomeProducts", input with { Version=draft.Version }, s.Actor, default)))).Code);
+    }
+
+    [SqlServerFact]
+    public async Task ManualOrders_AutoConfirmReserveOnceAndNeverQueueTelegram()
+    {
+        foreach (var source in new[] { OrderSource.Phone, OrderSource.Facebook, OrderSource.Zalo, OrderSource.Other })
+        {
+            await using var s = await Setup(stock: 3, notify: true, failJob: true);
+            var key = Guid.NewGuid(); var input = s.Cart(2);
+            var result = await s.Run(p => p.GetRequiredService<OrderService>().ManualAsync(input, key, source, s.Actor, default));
+            Assert.Equal(OrderStatus.Confirmed, result.Status);
+            Assert.Equal(result, await s.Run(p => p.GetRequiredService<OrderService>().ManualAsync(input, key, source, s.Actor, default)));
+            await s.Run(async p => {
+                var db = p.GetRequiredService<ForFitChickenDbContext>();
+                var order = await db.Orders.SingleAsync(x => x.OrderNumber == result.OrderNumber);
+                Assert.Equal(s.Actor, order.ConfirmedByUserId); Assert.NotNull(order.ConfirmedAtUtc);
+                var balance = await db.WarehouseBalances.SingleAsync(x => x.LocationId == s.Location && x.BatchId == s.Batch.Id);
+                Assert.Equal(2, balance.Reserved); Assert.Equal(3, balance.OnHand);
+                var item = await db.OrderItems.SingleAsync(x => x.OrderId == order.Id);
+                Assert.Equal(2, (await db.OrderAllocations.SingleAsync(x => x.OrderItemId == item.Id)).Quantity);
+                Assert.False(await db.NotificationJobs.AnyAsync(x => x.OrderId == order.Id));
+                Assert.True(await db.OrderEvents.AnyAsync(x => x.OrderId == order.Id && x.EventType == "ManualOrderConfirmed" && x.ActorUserId == s.Actor));
+                return true;
+            });
+        }
+    }
+
+    [SqlServerFact]
+    public async Task CompetingManualOrders_CannotOversellOrLeaveAPendingOrder()
+    {
+        await using var s = await Setup(stock: 1, notify: true);
+        async Task<bool> Create() {
+            try { await s.Run(p => p.GetRequiredService<OrderService>().ManualAsync(s.Cart(1), Guid.NewGuid(), OrderSource.Phone, s.Actor, default)); return true; }
+            catch (BusinessException e) when (e.Code == "INSUFFICIENT_STOCK") { return false; }
+        }
+        Assert.Single(await Task.WhenAll(Create(), Create()), x => x);
+        await s.Run(async p => {
+            var db = p.GetRequiredService<ForFitChickenDbContext>();
+            var order = await db.Orders.SingleAsync(x => x.CreatedByUserId == s.Actor);
+            Assert.Equal(OrderStatus.Confirmed, order.Status);
+            Assert.False(await db.NotificationJobs.AnyAsync(x => x.OrderId == order.Id));
+            Assert.Equal(1, (await db.WarehouseBalances.SingleAsync(x => x.LocationId == s.Location && x.BatchId == s.Batch.Id)).Reserved);
+            return true;
+        });
+    }
+
+    [SqlServerFact]
+    public async Task ManualReservationFailure_RollsBackOrderItemsAndStock()
+    {
+        await using var s = await Setup(stock: 3, notify: true, failReservation: true);
+        var key = Guid.NewGuid();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => s.Run(p => p.GetRequiredService<OrderService>().ManualAsync(s.Cart(2), key, OrderSource.Phone, s.Actor, default)));
+        await s.Run(async p => {
+            var db = p.GetRequiredService<ForFitChickenDbContext>();
+            Assert.False(await db.Orders.AnyAsync(x => x.CreatedByUserId == s.Actor));
+            Assert.False(await db.OrderItems.AnyAsync(x => x.VariantId == s.Variant.Id));
+            Assert.False(await db.IdempotencyRequests.AnyAsync(x => x.RequestKey == key.ToString("N")));
+            var balance = await db.WarehouseBalances.SingleAsync(x => x.LocationId == s.Location && x.BatchId == s.Batch.Id);
+            Assert.Equal(0, balance.Reserved); Assert.Equal(3, balance.OnHand);
+            return true;
+        });
+    }
+
+    [SqlServerFact]
+    public async Task CompleteAndPaid_IssuesOnceAndCollectsOnce_FromEachAllowedState()
+    {
+        foreach (var state in new[] { OrderStatus.Confirmed, OrderStatus.Preparing, OrderStatus.HandedOver, OrderStatus.Completed }) {
+            await using var s = await Setup(stock: 3);
+            var pending = await s.Order(2);
+            Assert.Equal("INVALID_ORDER_STATE", (await Assert.ThrowsAsync<BusinessException>(() => s.Run(p => p.GetRequiredService<OrderService>().CompleteAndReceiveAsync(pending.Id, new(pending.Version, null), s.Actor, default)))).Code);
+            var order = await s.Transition(pending, "confirm");
+            if (state == OrderStatus.Preparing) order = await s.Transition(order, "prepare");
+            if (state is OrderStatus.HandedOver or OrderStatus.Completed) order = await s.Transition(order, "handover");
+            if (state == OrderStatus.Completed) order = await s.Transition(order, "complete");
+            Assert.Equal("VERSION_CONFLICT", (await Assert.ThrowsAsync<BusinessException>(() => s.Run(p => p.GetRequiredService<OrderService>().CompleteAndReceiveAsync(order.Id, new("stale", null), s.Actor, default)))).Code);
+            var request = new CompleteAndReceiveInput(order.Version, "Đã nhận đủ tiền");
+            var result = await s.Run(p => p.GetRequiredService<OrderService>().CompleteAndReceiveAsync(order.Id, request, s.Actor, default));
+            Assert.Equal(OrderStatus.Completed, result.Status);
+            await s.Run(p => p.GetRequiredService<OrderService>().CompleteAndReceiveAsync(order.Id, request, s.Actor, default));
+            await s.Run(async p => {
+                var db = p.GetRequiredService<ForFitChickenDbContext>();
+                var balance = await db.WarehouseBalances.SingleAsync(x => x.LocationId == s.Location && x.BatchId == s.Batch.Id);
+                Assert.Equal(1, balance.OnHand); Assert.Equal(0, balance.Reserved);
+                var receipt = await db.CodReceipts.SingleAsync(x => x.OrderId == order.Id && x.VoidedAtUtc == null);
+                Assert.Equal(result.ItemsSubtotal, receipt.Amount); Assert.Equal(s.Actor, receipt.RecordedByUserId);
+                Assert.Equal(1, await db.StockDocuments.CountAsync(x => x.OrderId == order.Id));
+                return true;
+            });
+        }
+    }
+
+    [SqlServerFact]
+    public async Task CompleteAndPaid_ReceiptFailure_RollsBackDeliveryAndStock()
+    {
+        await using var s = await Setup(stock: 3, failReceipt: true);
+        var order = await s.Transition(await s.Order(2), "confirm");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => s.Run(p => p.GetRequiredService<OrderService>().CompleteAndReceiveAsync(order.Id, new(order.Version, null), s.Actor, default)));
+        await s.Run(async p => {
+            var db = p.GetRequiredService<ForFitChickenDbContext>();
+            Assert.Equal(OrderStatus.Confirmed, (await db.Orders.SingleAsync(x => x.Id == order.Id)).Status);
+            var balance = await db.WarehouseBalances.SingleAsync(x => x.LocationId == s.Location && x.BatchId == s.Batch.Id);
+            Assert.Equal(3, balance.OnHand); Assert.Equal(2, balance.Reserved);
+            Assert.False(await db.CodReceipts.AnyAsync(x => x.OrderId == order.Id));
+            Assert.False(await db.StockDocuments.AnyAsync(x => x.OrderId == order.Id));
+            Assert.False(await db.OrderEvents.AnyAsync(x => x.OrderId == order.Id && (x.EventType == "complete" || x.EventType == "handover")));
+            return true;
+        });
     }
 
     [SqlServerFact]
@@ -309,7 +448,7 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
     }
 
     [SqlServerFact]
-    public async Task AdminHttp_ValidatesRecords_AndOperatorCannotReadFinance()
+    public async Task AdminHttp_ValidatesRecords_AndOperatorCanReadOperationalReports()
     {
         await using var s = await Setup(); using var owner = s.Factory.Client();
         var userName = await s.Run(async p => (await p.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(s.Actor.ToString()))!.UserName!);
@@ -327,7 +466,7 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
         var data = await created.Content.ReadFromJsonAsync<JsonElement>(); var id = data.GetProperty("id").GetInt64();
         Assert.Equal(HttpStatusCode.BadRequest, (await owner.PostAsJsonAsync($"/api/admin/products/{id}/variants", new VariantInput("BAD", "200g", 200, 0, true, 0, null))).StatusCode);
         var manual = await s.Run(p => p.GetRequiredService<OrderService>().ManualAsync(s.Cart(1), Guid.NewGuid(), OrderSource.Facebook, s.Actor, default));
-        Assert.Equal(OrderStatus.PendingConfirmation, manual.Status);
+        Assert.Equal(OrderStatus.Confirmed, manual.Status);
         var orderList = await owner.GetFromJsonAsync<JsonElement>("/api/admin/orders?search=" + manual.OrderNumber);
         var httpOrder = orderList.GetProperty("items")[0];
         var httpOrderId = httpOrder.GetProperty("id").GetInt64();
@@ -339,14 +478,20 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
             httpOrder = await transitioned.Content.ReadFromJsonAsync<JsonElement>();
         }
         Assert.Equal("Completed", httpOrder.GetProperty("status").GetString());
+        var paidResponse = await owner.PostAsJsonAsync($"/api/admin/orders/{httpOrderId}/actions/complete-paid",
+            new { version = httpOrder.GetProperty("version").GetString(), reason = "Đã nhận tiền" });
+        Assert.Equal(HttpStatusCode.OK, paidResponse.StatusCode);
+        Assert.Equal("Completed", (await paidResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        Assert.Single((await owner.GetFromJsonAsync<ReceiptView[]>($"/api/admin/orders/{httpOrderId}/receipts"))!);
         var name = await s.Run(async p =>
         {
             var users = p.GetRequiredService<UserManager<ApplicationUser>>(); var account = new ApplicationUser { UserName = Guid.NewGuid().ToString("N"), DisplayName = "Operator" };
             Assert.True((await users.CreateAsync(account, "TestOnly-StrongPassword42!")).Succeeded); Assert.True((await users.AddToRoleAsync(account, "Operator")).Succeeded); return account.UserName;
         });
         using var op = s.Factory.Client(); await Login(op, name);
-        Assert.Equal(HttpStatusCode.Forbidden, (await op.GetAsync("/api/admin/reports/sales?fromUtc=2026-10-01T00%3A00%3A00Z&toUtc=2026-11-01T00%3A00%3A00Z")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await op.GetAsync($"/api/admin/orders/1/receipts")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await op.GetAsync("/api/admin/reports/sales?fromUtc=2026-10-01T00%3A00%3A00Z&toUtc=2026-11-01T00%3A00%3A00Z")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await op.GetAsync($"/api/admin/orders/{httpOrderId}/receipts")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await op.GetAsync("/api/admin/content")).StatusCode);
         var publicProduct = await op.GetStringAsync($"/api/products/{s.Product.Id}"); Assert.DoesNotContain("unitCost", publicProduct);
     }
 
@@ -376,14 +521,14 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
         });
     }
 
-    private async Task<Scenario> Setup(int stock = 10, bool notify = false, bool failJob = false)
+    private async Task<Scenario> Setup(int stock = 10, bool notify = false, bool failJob = false, bool failReservation = false, bool failReceipt = false)
     {
         var sender = new FakeSender();
         var factory = new AdminAuthApiFactory(database, configure: services =>
         {
             services.RemoveAll<INotificationSettings>(); services.AddSingleton<INotificationSettings>(new TestNotifications(notify));
             services.RemoveAll<ITelegramSender>(); services.AddSingleton<ITelegramSender>(sender);
-        }, contextOptions: options => { if (failJob) options.AddInterceptors(new FailJobSaveInterceptor()); });
+        }, contextOptions: options => { if (failJob) options.AddInterceptors(new FailJobSaveInterceptor()); if (failReservation) options.AddInterceptors(new FailReservationSaveInterceptor()); if (failReceipt) options.AddInterceptors(new FailReceiptSaveInterceptor()); });
         var s = new Scenario(factory, sender); var code = Guid.NewGuid().ToString("N");
         s.Actor = await s.Run(async p =>
         {
@@ -432,6 +577,24 @@ public sealed class CommerceTests(MigratedDatabaseFixture database) : IClassFixt
         public ValueTask DisposeAsync() => Factory.DisposeAsync();
     }
     private sealed class TestNotifications(bool enabled) : INotificationSettings { public NotificationSettings Current => new(enabled, -100123456); }
+    private sealed class FailReceiptSaveInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<CodReceipt>().Any(x => x.State == EntityState.Added))
+                throw new InvalidOperationException("Simulated receipt save failure.");
+            return ValueTask.FromResult(result);
+        }
+    }
+    private sealed class FailReservationSaveInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<OrderAllocation>().Any(x => x.State == EntityState.Added))
+                throw new InvalidOperationException("Simulated reservation save failure.");
+            return ValueTask.FromResult(result);
+        }
+    }
     private sealed class FailJobSaveInterceptor : SaveChangesInterceptor
     {
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
