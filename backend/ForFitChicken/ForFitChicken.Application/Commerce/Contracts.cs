@@ -60,6 +60,7 @@ public sealed record OrderEditInput([Required] string Version, [Required, String
     [Required, RegularExpression("^(?:0[0-9]{9}|\\+84[0-9]{9})$")] string RecipientPhone,
     [Required, StringLength(600)] string RecipientAddress, [StringLength(1000)] string? InternalNote);
 public sealed record ReceiptInput([Required] string Version, DateTime ReceivedAtUtc, [StringLength(200)] string? Reference);
+public sealed record CompleteAndReceiveInput([Required] string Version, [StringLength(200)] string? Reason);
 public sealed record ReceiptView(long Id, long OrderId, decimal Amount, DateTime ReceivedAtUtc, DateTime? VoidedAtUtc, string? VoidReason, string? Reference);
 public sealed record ReceiptVoidInput([Required, StringLength(500)] string Reason);
 public sealed record GymInput([Required, StringLength(40), RegularExpression("^[A-Za-z0-9_-]+$")] string GymCode,
@@ -84,7 +85,10 @@ public sealed record ResolutionInput([Required] string Version, VarianceDirectio
 public sealed record ResolutionView(long Id, long CountLineId, VarianceDirection Direction, VarianceCategory Category, int Quantity,
     string Reason, DateTime VerifiedAtUtc, DateTime? VoidedAtUtc, string? EvidenceReference, string? VoidReason);
 public sealed record SiteSectionInput([Required, StringLength(200)] string Title, [StringLength(20000)] string? Body,
-    long[] AssetIds, [StringLength(100)] string? LinkLabel, [StringLength(500)] string? LinkUrl, string? Version, long[]? ProductIds = null, bool Enabled = true, Dictionary<long, long>? ProductMainImages = null);
+    long[] AssetIds, [StringLength(100)] string? LinkLabel, [StringLength(500)] string? LinkUrl, string? Version, long[]? ProductIds = null, bool Enabled = true, Dictionary<long, long>? ProductMainImages = null,
+    Dictionary<long, HomeImageFrame>? ProductImageFrames = null);
+public sealed record HomeImageFrame(long AssetId, ImageFrameSettings Desktop, ImageFrameSettings? Mobile = null);
+public sealed record ImageFrameSettings(string Fit = "contain", decimal X = 50, decimal Y = 50, decimal Zoom = 1);
 public sealed record SectionView(string SectionKey, SiteSectionInput Content, DateTime? PublishedAtUtc, string? Version);
 public sealed record SalesReport(DateTime FromUtc, DateTime ToUtc, int OrdersRequested, int OrdersCompleted, decimal CompletedItemsValue,
     decimal CodReceived, decimal KnownIssuedCost, int IssuedPackagesWithUnknownCost, string Note);

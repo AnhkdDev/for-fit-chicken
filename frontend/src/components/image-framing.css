@@ -1,0 +1,17 @@
+.framed-product-image { width: 100%; height: 100%; min-height: 0; overflow: hidden; position: relative; --frame-fit: var(--desktop-fit); --frame-x: var(--desktop-x); --frame-y: var(--desktop-y); --frame-zoom: var(--desktop-zoom); }
+.framed-product-image .product-image-frame > img.framed-photo { object-fit: var(--frame-fit); object-position: var(--frame-x) var(--frame-y); transform: scale(var(--frame-zoom)); transform-origin: var(--frame-x) var(--frame-y); max-height: none; }
+@media (max-width: 700px) {
+ .framed-product-image { --frame-fit: var(--mobile-fit); --frame-x: var(--mobile-x); --frame-y: var(--mobile-y); --frame-zoom: var(--mobile-zoom); }
+}
+.display-preview.mobile .framed-product-image, .framed-product-image.frame-mobile { --frame-fit: var(--mobile-fit); --frame-x: var(--mobile-x); --frame-y: var(--mobile-y); --frame-zoom: var(--mobile-zoom); }
+.framed-product-image.frame-desktop { --frame-fit: var(--desktop-fit); --frame-x: var(--desktop-x); --frame-y: var(--desktop-y); --frame-zoom: var(--desktop-zoom); }
+.admin-shell .modal.image-frame-editor { width: min(850px, calc(100vw - 32px)); max-width: 850px; }
+.crop-stage { width: min(100%, 560px); aspect-ratio: 4 / 3; overflow: hidden; margin: 20px auto; border: 1px solid #cbd5e1; border-radius: 8px; background: #f7eddc; touch-action: pan-y; }
+.crop-stage.is-draggable { cursor: grab; touch-action: none; }
+.crop-stage.is-draggable:active { cursor: grabbing; }
+.crop-stage.is-mobile { max-width: 358px; }
+.crop-stage img { user-select: none; pointer-events: none; }
+.crop-controls { display: grid; gap: 14px; margin-block: 16px; }
+.crop-controls label { display: grid; gap: 8px; }
+.crop-controls input[type='range'] { width: 100%; min-height: 32px; }
+.admin-shell .crop-stage .product-image-frame { height: 100%; }

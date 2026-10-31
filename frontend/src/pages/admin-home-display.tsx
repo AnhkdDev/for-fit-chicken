@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, send } from '../lib/api';
+import { api, safeLink, send } from '../lib/api';
 import { useOwner } from '../lib/admin-session';
 import { useUnsavedWarning } from '../lib/useUnsavedWarning';
-import type { Product, Page, Section } from '../lib/types';
+import type { Product, Page, Section, HomeImageFrame } from '../lib/types';
+import { ImageFrameEditor } from '../components/ImageFrameEditor';
+import { frameForAsset } from '../lib/image-framing';
 import { Heading, Panel } from '../components/admin-ui';
 import { ErrorBox, Loading, Modal, Success } from '../components/ui';
 import { Home } from './storefront';
@@ -16,6 +18,7 @@ const empty = () => ({
   linkUrl: '/san-pham',
   productIds: [] as number[],
   productMainImages: {} as Record<string, number>,
+  productImageFrames: {} as Record<string, HomeImageFrame>,
   enabled: true,
 });
 export function HomeDisplayAdmin() {
@@ -31,6 +34,12 @@ export function HomeDisplayAdmin() {
   const [preview, setPreview] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [publish, setPublish] = useState(false);
+  const [editingFrame, setEditingFrame] = useState<{
+    productId: number;
+    assetId: number;
+    src: string;
+    name: string;
+  }>();
   const dirty = !!baseline && JSON.stringify(draft) !== baseline;
   useUnsavedWarning(dirty);
   function apply(s?: Section) {
@@ -40,6 +49,7 @@ export function HomeDisplayAdmin() {
           ...s.content,
           productIds: s.content.productIds ?? [],
           productMainImages: s.content.productMainImages ?? {},
+          productImageFrames: s.content.productImageFrames ?? {},
           enabled: s.content.enabled ?? true,
         }
       : empty();
@@ -70,6 +80,10 @@ export function HomeDisplayAdmin() {
     void load();
   }, []);
   async function save() {
+    if (safeLink(draft.linkUrl, 'INVALID') === 'INVALID') {
+      setError('Đường dẫn nút phải bắt đầu bằng / hoặc https://.');
+      return;
+    }
     setBusy(true);
     setError('');
     setMessage('');
@@ -78,6 +92,14 @@ export function HomeDisplayAdmin() {
         ...draft,
         version: section?.version,
       });
+      if (
+        Object.keys(draft.productImageFrames).some((key) => !s.content.productImageFrames?.[key])
+      ) {
+        setSection(s);
+        throw new Error(
+          'Backend chưa lưu được cấu hình căn ảnh. Cần cập nhật/khởi động lại backend mới trước khi lưu lại; cách căn đang nhập vẫn được giữ trên màn hình này.',
+        );
+      }
       apply(s);
       setMessage('Đã lưu nháp. Website chưa thay đổi.');
     } catch (e) {
@@ -139,6 +161,24 @@ export function HomeDisplayAdmin() {
           <fieldset disabled={busy}>
             <Panel>
               <h2>Nội dung khu trưng bày</h2>
+              <div className="admin-help" role="note">
+                <p>
+                  “Sản phẩm nổi bật” là tiêu đề cố định. Tiêu đề bạn nhập bên dưới hiển thị thành
+                  dòng phụ, ví dụ “Bữa ngon, gần bạn hơn.”; không nhập lặp “Sản phẩm nổi bật”. Lời
+                  giới thiệu là đoạn bổ sung, có thể để trống để trang gọn hơn.
+                </p>
+                <p>
+                  Tên, mô tả ngắn, ảnh, khối lượng và giá lấy từ{' '}
+                  <Link to="/quan-tri/san-pham">Sản phẩm</Link>, không nhập lại ở đây. Thay đổi
+                  thông tin của sản phẩm đã công bố có thể xuất hiện trên website sau khi lưu sản
+                  phẩm, không đợi công bố lại cấu hình trưng bày.
+                </p>
+                <p>
+                  Danh sách và thứ tự tại đây được ưu tiên sau khi công bố, thay cho dấu “Sản phẩm
+                  nổi bật” trong form sản phẩm. Xem trước dùng cấu hình đang nhập và dữ liệu sản
+                  phẩm hiện tại; không lưu bản sao giá hoặc nội dung sản phẩm.
+                </p>
+              </div>
               <label className="checkbox-label">
                 <input
                   type="checkbox"
@@ -148,7 +188,7 @@ export function HomeDisplayAdmin() {
                 Hiển thị khu sản phẩm trên trang chủ
               </label>
               <label>
-                Tiêu đề *
+                Dòng phụ dưới “Sản phẩm nổi bật” *
                 <input
                   required
                   maxLength={200}
@@ -173,6 +213,20 @@ export function HomeDisplayAdmin() {
                   value={draft.linkLabel ?? ''}
                   onChange={(e) => setDraft({ ...draft, linkLabel: e.target.value })}
                 />
+              </label>
+              <label>
+                Đường dẫn nút xem danh sách
+                <input
+                  required
+                  maxLength={500}
+                  placeholder="/san-pham"
+                  value={draft.linkUrl ?? ''}
+                  onChange={(e) => setDraft({ ...draft, linkUrl: e.target.value })}
+                />
+                <small>
+                  Mặc định /san-pham. Dùng đường dẫn bắt đầu bằng / hoặc https://; không nhập mã
+                  HTML.
+                </small>
               </label>
             </Panel>
             <Panel>
@@ -219,6 +273,12 @@ export function HomeDisplayAdmin() {
                                         ...draft.productMainImages,
                                         [String(id)]: im.assetId,
                                       },
+                                      productImageFrames: Object.fromEntries(
+                                        Object.entries(draft.productImageFrames).filter(
+                                          ([key, value]) =>
+                                            key !== String(id) || value.assetId === im.assetId,
+                                        ),
+                                      ),
                                     })
                                   }
                                 >
@@ -227,6 +287,26 @@ export function HomeDisplayAdmin() {
                                 </button>
                               ))}
                             </div>
+                            {owner && p.images.length > 0 && (
+                              <button
+                                type="button"
+                                className="small-button"
+                                onClick={() => {
+                                  const im =
+                                    p.images.find(
+                                      (im) => im.assetId === draft.productMainImages[String(id)],
+                                    ) ?? p.images[0];
+                                  setEditingFrame({
+                                    productId: id,
+                                    assetId: im.assetId,
+                                    src: im.url,
+                                    name: p.name,
+                                  });
+                                }}
+                              >
+                                Căn ảnh trang chủ
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -258,6 +338,11 @@ export function HomeDisplayAdmin() {
                               productIds: draft.productIds.filter((x) => x !== id),
                               productMainImages: Object.fromEntries(
                                 Object.entries(draft.productMainImages).filter(
+                                  ([key]) => key !== String(id),
+                                ),
+                              ),
+                              productImageFrames: Object.fromEntries(
+                                Object.entries(draft.productImageFrames).filter(
                                   ([key]) => key !== String(id),
                                 ),
                               ),
@@ -311,7 +396,10 @@ export function HomeDisplayAdmin() {
               <p className="admin-help">
                 Bấm ảnh thu nhỏ ở từng sản phẩm để chọn ảnh chính trang chủ. Các ảnh khác vẫn làm
                 ảnh phụ. Giá và nội dung dùng thông tin sản phẩm hiện hành. Lưu nháp không tạo bản
-                sao độc lập của sản phẩm.
+                sao độc lập của sản phẩm. Owner dùng “Căn ảnh trang chủ” để kéo/phóng ảnh trong
+                khung, có tùy chọn riêng cho điện thoại. Chỉ ảnh chính trang chủ thay đổi; ảnh gốc,
+                trang chi tiết và ảnh phóng to giữ nguyên. Đổi ảnh chính sẽ đặt lại cách căn của sản
+                phẩm. Cần lưu nháp và công bố để áp dụng.
               </p>
             </Panel>
             <div className="admin-savebar">
@@ -343,6 +431,33 @@ export function HomeDisplayAdmin() {
             </div>
           </fieldset>
         </form>
+      )}
+      {editingFrame && (
+        <ImageFrameEditor
+          key={`${editingFrame.productId}:${editingFrame.assetId}`}
+          assetId={editingFrame.assetId}
+          src={editingFrame.src}
+          name={editingFrame.name}
+          initial={frameForAsset(
+            draft.productImageFrames[String(editingFrame.productId)],
+            editingFrame.assetId,
+          )}
+          close={() => setEditingFrame(undefined)}
+          apply={(frame) => {
+            setDraft((d) => ({
+              ...d,
+              productMainImages: {
+                ...d.productMainImages,
+                [String(editingFrame.productId)]: editingFrame.assetId,
+              },
+              productImageFrames: {
+                ...d.productImageFrames,
+                [String(editingFrame.productId)]: frame,
+              },
+            }));
+            setEditingFrame(undefined);
+          }}
+        />
       )}
       {preview && (
         <Modal

@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite --host localhost",
     "dev:fixtures": "vite --host localhost --port 5174 --mode ui-fixtures",
-    "build": "tsc -b && vite build",
-    "test": "node --test tests/cart.test.ts tests/admin-forms.test.ts tests/home-display.test.ts tests/problem.test.ts tests/admin-permissions.test.ts",
+    "build": "tsc -b && vite build --outDir dist/client && vite build --ssr src/entry-server.tsx --outDir dist/server",
+    "start:ssr": "node server/index.mjs",
+    "test:ssr": "node --test tests/ssr.test.mjs",
+    "test": "node --test tests/order-workflow.test.ts tests/cart.test.ts tests/admin-forms.test.ts tests/home-display.test.ts tests/problem.test.ts tests/admin-permissions.test.ts",
     "preview": "vite preview --host localhost"
   },
   "dependencies": {

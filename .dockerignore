@@ -11,6 +11,15 @@
 **/*.env
 **/*.env.*
 **/appsettings.*.Local.json
+**/appsettings.Production.json
+**/secrets.json
+**/*.key
+**/*.pem
+**/*.pfx
+**/*.p12
+**/.aws
+**/.codex
+**/.agents
 **/App_Data
 **/*.bak
 **/*.mdf

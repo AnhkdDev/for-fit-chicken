@@ -1,0 +1,28 @@
+# Overlay ONLY after approved image builds/staging. Existing compose.images.yaml supplies API/volumes/network.
+services:
+  web:
+    image: forfit-web:seo-ssr-v1
+    build:
+      context: ../..
+      dockerfile: deploy/phase1/Dockerfile.web-ssr
+    depends_on:
+      - api
+      - ssr
+  ssr:
+    image: forfit-ssr:seo-ssr-v1
+    build:
+      context: ../..
+      dockerfile: deploy/phase1/Dockerfile.ssr
+    network_mode: service:api
+    environment:
+      NODE_ENV: production
+      PORT: 8082
+      SSR_HOST: 127.0.0.1
+      PUBLIC_API_ORIGIN: http://127.0.0.1:8080
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

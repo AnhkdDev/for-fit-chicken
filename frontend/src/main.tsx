@@ -1,6 +1,9 @@
-import { createRoot } from 'react-dom/client';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
-import './admin.css';
 
-createRoot(document.getElementById('root')!).render(<App />);
+const node = document.getElementById('root')!;
+const payload = document.getElementById('public-data');
+const initial = payload ? JSON.parse(payload.textContent || '{}') : undefined;
+if (initial) hydrateRoot(node, <App initial={initial} />);
+else createRoot(node).render(<App />);

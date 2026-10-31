@@ -1,3 +1,5 @@
+import { OrderDialog } from './admin-order-detail';
+import '../admin.css';
 import { canOpenAdminArea } from '../lib/admin-permissions';
 import { Employees } from './admin-employees';
 import { DeleteRecord } from '../components/DeleteRecord';
@@ -32,7 +34,7 @@ import { Pager, Panel, Heading, Field, validImage } from '../components/admin-ui
 import { ProductWorkspace } from './admin-product';
 import { HomeDisplayAdmin } from './admin-home-display';
 import { ContentWorkspace } from './admin-content';
-import { ManualOrder, EditRecipient } from './admin-order-forms';
+import { ManualOrder } from './admin-order-forms';
 
 const links = [
   ['', 'Tổng quan', LayoutDashboard],
@@ -376,7 +378,7 @@ function Orders() {
     <>
       <Heading
         title="Đơn hàng"
-        description="Nhận yêu cầu → gọi xác nhận → chuẩn bị → bàn giao → hoàn tất."
+        description="Đơn website cần gọi xác nhận. Đơn thủ công được chốt và giữ hàng ngay khi tạo."
       >
         <button className="button" onClick={() => setCreate(true)}>
           <Plus size={17} />
@@ -511,8 +513,12 @@ function Orders() {
       {create && (
         <ManualOrder
           close={() => setCreate(false)}
-          saved={() => {
+          saved={(orderNumber) => {
             setCreate(false);
+            setPage(1);
+            setStatus('');
+            setSearch(orderNumber);
+            setQuery(orderNumber);
             r.reload();
           }}
         />
@@ -528,248 +534,6 @@ const orderLabels: Record<string, string> = {
   Completed: 'Hoàn tất',
   Cancelled: 'Đã hủy',
 };
-function OrderDialog({ id, canManageReceipts, close }: { id: number; canManageReceipts: boolean; close: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const r = useResource<Order>(`/admin/orders/${id}`);
-  const events = useResource<
-    { id: number; eventType: string; createdAtUtc: string; note?: string }[]
-  >(`/admin/orders/${id}/events`);
-  const [action, setAction] = useState('');
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const o = r.data;
-  const receipts = useResource<
-    { id: number; amount: number; receivedAtUtc: string; voidedAtUtc?: string }[]
-  >(canManageReceipts ? `/admin/orders/${id}/receipts` : `/admin/orders/${id}/events`);
-  async function execute(e: FormEvent) {
-    e.preventDefault();
-    if (!o) return;
-    setBusy(true);
-    setError('');
-    setSuccess('');
-    try {
-      if (action === 'receipt')
-        await send(`/admin/orders/${id}/receipts`, 'POST', {
-          version: o.version,
-          receivedAtUtc: new Date().toISOString(),
-          reference: reason || null,
-        });
-      else
-        await send(`/admin/orders/${id}/actions/${action}`, 'POST', {
-          version: o.version,
-          reason: reason || null,
-        });
-      setSuccess('Đã ghi nhận thao tác.');
-      setAction('');
-      setReason('');
-      r.reload();
-      events.reload();
-      receipts.reload();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const actions = o
-    ? ((
-        {
-          PendingConfirmation: [
-            ['confirm', 'Xác nhận sau khi gọi'],
-            ['cancel', 'Hủy đơn'],
-          ],
-          Confirmed: [
-            ['prepare', 'Bắt đầu chuẩn bị'],
-            ['handover', 'Bàn giao giao hàng'],
-            ['reallocate', 'Phân bổ lại lô'],
-            ['cancel', 'Hủy đơn'],
-          ],
-          Preparing: [
-            ['handover', 'Bàn giao giao hàng'],
-            ['reallocate', 'Phân bổ lại lô'],
-            ['cancel', 'Hủy đơn'],
-          ],
-          HandedOver: [['complete', 'Hoàn tất giao hàng']],
-          Completed: [],
-          Cancelled: [],
-        } as Record<string, string[][]>
-      )[o.status] ?? [])
-    : [];
-  return (
-    <Modal title="Chi tiết đơn hàng" close={() => !busy && close()}>
-      {r.loading ? (
-        <Loading />
-      ) : r.error ? (
-        <ErrorBox text={r.error} retry={r.reload} />
-      ) : (
-        o && (
-          <>
-            <div className="order-detail-top">
-              <div>
-                <span className="eyebrow">{o.orderNumber}</span>
-                <h3>{o.recipientName}</h3>
-              </div>
-              <Status value={o.status} />
-            </div>
-            <div className="info-box">
-              <a href={`tel:${o.recipientPhone}`}>{o.recipientPhone}</a>
-              <p>{o.recipientAddress}</p>
-              {o.customerNote && <p>Khách nhắn: {o.customerNote}</p>}
-              {o.internalNote && <p>Nội bộ: {o.internalNote}</p>}
-              {o.status === 'PendingConfirmation' && (
-                <button
-                  className="small-button"
-                  disabled={busy}
-                  onClick={() => setEditing((x) => !x)}
-                >
-                  Sửa thông tin nhận hàng
-                </button>
-              )}
-            </div>
-            {editing && o.status === 'PendingConfirmation' && (
-              <EditRecipient
-                order={o}
-                saved={() => {
-                  setEditing(false);
-                  r.reload();
-                  events.reload();
-                }}
-                cancel={() => setEditing(false)}
-              />
-            )}
-            <div className="line-list">
-              {o.items.map((i) => (
-                <div key={i.id}>
-                  <span>
-                    {i.productName}
-                    <small>
-                      {i.label} × {i.quantity}
-                    </small>
-                  </span>
-                  <b>{money(i.lineTotal)}</b>
-                </div>
-              ))}
-              <div>
-                <b>Tiền hàng COD</b>
-                <strong>{money(o.itemsSubtotal)}</strong>
-              </div>
-            </div>
-            {success && <Success>{success}</Success>}
-            {error && <ErrorBox text={error} />}
-            <div className="action-grid">
-              {actions.map(([cmd, label]) => (
-                <button
-                  key={cmd}
-                  className="small-button"
-                  disabled={busy || editing}
-                  onClick={() => {
-                    setAction(cmd);
-                    setError('');
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-              {canManageReceipts &&
-                ['HandedOver', 'Completed'].includes(o.status) &&
-                !receipts.data?.some((x) => !x.voidedAtUtc) && (
-                  <button
-                    className="small-button"
-                    disabled={busy}
-                    onClick={() => setAction('receipt')}
-                  >
-                    Ghi nhận đủ tiền COD
-                  </button>
-                )}
-            </div>
-            {action && (
-              <form onSubmit={execute} className="action-confirm">
-                <h4>
-                  {action === 'receipt'
-                    ? 'Xác nhận đã thực nhận đủ tiền COD'
-                    : actions.find((a) => a[0] === action)?.[1]}
-                </h4>
-                <p>
-                  Thao tác sẽ cập nhật dữ liệu thật. Hoàn tất giao hàng không tự ghi nhận tiền COD.
-                </p>
-                <label>
-                  {action === 'cancel' ? 'Lý do hủy (bắt buộc)' : 'Ghi chú / tham chiếu'}
-                  <input
-                    value={reason}
-                    required={action === 'cancel'}
-                    maxLength={500}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                </label>
-                <div className="button-row">
-                  <button className="button" disabled={busy}>
-                    {busy ? 'Đang ghi nhận…' : 'Xác nhận thao tác'}
-                  </button>
-                  <button
-                    type="button"
-                    className="small-button"
-                    disabled={busy}
-                    onClick={() => setAction('')}
-                  >
-                    Để sau
-                  </button>
-                </div>
-              </form>
-            )}
-            {canManageReceipts && (
-              <div className="receipt-history">
-                <h4>Tiền COD đã ghi nhận</h4>
-                {receipts.error ? (
-                  <ErrorBox text={receipts.error} />
-                ) : receipts.data?.length ? (
-                  receipts.data.map((x) => (
-                    <p key={x.id}>
-                      {money(x.amount)} · {date(x.receivedAtUtc)}{' '}
-                      {x.voidedAtUtc ? '· Đã vô hiệu' : '· Hiệu lực'}
-                    </p>
-                  ))
-                ) : (
-                  <p className="muted">Chưa có khoản thu.</p>
-                )}
-              </div>
-            )}
-            <h4>Lịch sử đơn hàng</h4>
-            {events.error ? (
-              <ErrorBox text={events.error} />
-            ) : (
-              <ol className="timeline">
-                {events.data?.map((e) => (
-                  <li key={e.id}>
-                    <span>
-                      {(
-                        {
-                          OrderRequested: 'Đã tiếp nhận đơn',
-                          RecipientUpdated: 'Đã sửa thông tin người nhận',
-                          confirm: 'Đã xác nhận đơn',
-                          prepare: 'Bắt đầu chuẩn bị',
-                          handover: 'Đã bàn giao giao hàng',
-                          complete: 'Hoàn tất giao hàng',
-                          cancel: 'Đã hủy đơn',
-                          reallocate: 'Đã phân bổ lại lô',
-                        } as Record<string, string>
-                      )[e.eventType] ?? e.eventType}
-                    </span>
-                    <small>
-                      {date(e.createdAtUtc)}
-                      {e.note && ` · ${e.note}`}
-                    </small>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </>
-        )
-      )}
-    </Modal>
-  );
-}
 function Catalog() {
   const owner = useOwner();
   const [search, setSearch] = useState('');
@@ -1476,5 +1240,3 @@ function Notifications() {
     </>
   );
 }
-
-

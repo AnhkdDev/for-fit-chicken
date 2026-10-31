@@ -5,6 +5,7 @@ import { date, safeLink, send } from '../lib/api';
 import { useResource } from '../lib/useResource';
 import { useOwner } from '../lib/admin-session';
 import { sectionNames } from '../lib/admin-forms';
+import { contentGuidance } from '../lib/content-guidance';
 import { useUnsavedWarning } from '../lib/useUnsavedWarning';
 import type { Section } from '../lib/types';
 import { Heading, Panel } from '../components/admin-ui';
@@ -24,6 +25,7 @@ export function ContentWorkspace() {
   const [message, setMessage] = useState('');
   const [publish, setPublish] = useState(false);
   const dirty = baseline !== '' && JSON.stringify(draft) !== baseline;
+  const guidance = contentGuidance[key];
   useUnsavedWarning(dirty);
   function apply(s?: Section) {
     const d = s
@@ -50,7 +52,7 @@ export function ContentWorkspace() {
   }
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (draft.linkUrl && safeLink(draft.linkUrl, 'INVALID') === 'INVALID') {
+    if (guidance?.links && draft.linkUrl && safeLink(draft.linkUrl, 'INVALID') === 'INVALID') {
       setError('Đường dẫn nút phải bắt đầu bằng / hoặc https://.');
       return;
     }
@@ -129,9 +131,11 @@ export function ContentWorkspace() {
               >
                 {label}
                 <small>
-                  {r.data?.find((s) => s.sectionKey === k)?.publishedAtUtc
-                    ? 'Đã từng công bố'
-                    : 'Chưa công bố'}
+                  {contentGuidance[k]?.archived
+                    ? 'Chưa có vị trí hiển thị'
+                    : r.data?.find((s) => s.sectionKey === k)?.publishedAtUtc
+                      ? 'Đã từng công bố'
+                      : 'Chưa công bố'}
                 </small>
               </button>
             ))}
@@ -153,6 +157,18 @@ export function ContentWorkspace() {
                   Công bố gần nhất: {date(snapshot?.publishedAtUtc)}. Nội dung là văn bản thường,
                   không cần nhập HTML.
                 </p>
+                <div className="admin-help" role="note">
+                  <p>
+                    <b>Nội dung này xuất hiện ở đâu?</b> {guidance?.placement}
+                  </p>
+                  <p>{guidance?.writing}</p>
+                  <p>
+                    Sửa sản phẩm nổi bật tại{' '}
+                    <Link to="/quan-tri/trung-bay">Trưng bày trang chủ</Link>; tên, mô tả, giá và
+                    quy cách tại <Link to="/quan-tri/san-pham">Sản phẩm</Link>. Lưu nháp chưa đổi
+                    nội dung công khai; công bố chỉ áp dụng bản đã lưu.
+                  </p>
+                </div>
                 {error && <ErrorBox text={error} />} {message && <Success>{message}</Success>}
                 <label>
                   Tiêu đề <span className="required">*</span>
@@ -172,59 +188,63 @@ export function ContentWorkspace() {
                     onChange={(e) => setDraft({ ...draft, body: e.target.value })}
                   />
                 </label>
-                <div className="form-grid">
-                  <label>
-                    Chữ trên nút
-                    <input
-                      maxLength={100}
-                      placeholder="Ví dụ: Khám phá sản phẩm"
-                      value={draft.linkLabel}
-                      onChange={(e) => setDraft({ ...draft, linkLabel: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Đường dẫn nút
-                    <input
-                      maxLength={500}
-                      list="content-links"
-                      placeholder="/san-pham"
-                      value={draft.linkUrl}
-                      onChange={(e) => setDraft({ ...draft, linkUrl: e.target.value })}
-                    />
-                    <datalist id="content-links">
-                      <option value="/san-pham" />
-                      <option value="/cau-chuyen" />
-                      <option value="/diem-ban" />
-                    </datalist>
-                  </label>
-                </div>
+                {guidance?.links && (
+                  <div className="form-grid">
+                    <label>
+                      Chữ trên nút
+                      <input
+                        maxLength={100}
+                        placeholder="Ví dụ: Khám phá sản phẩm"
+                        value={draft.linkLabel}
+                        onChange={(e) => setDraft({ ...draft, linkLabel: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Đường dẫn nút
+                      <input
+                        maxLength={500}
+                        list="content-links"
+                        placeholder="/san-pham"
+                        value={draft.linkUrl}
+                        onChange={(e) => setDraft({ ...draft, linkUrl: e.target.value })}
+                      />
+                      <datalist id="content-links">
+                        <option value="/san-pham" />
+                        <option value="/cau-chuyen" />
+                        <option value="/diem-ban" />
+                      </datalist>
+                    </label>
+                  </div>
+                )}
               </Panel>
-              <Panel>
-                <h2>Hình ảnh</h2>
-                <p className="muted">
-                  {key === 'HomeHero'
-                    ? 'Mỗi ảnh là một slide banner. Dùng nút lên/xuống để đổi thứ tự; khách có thể chuyển ảnh. Chuẩn bị ảnh ngang, chừa vùng trống bên trái cho chữ.'
-                    : key === 'Story'
-                      ? 'Ảnh đầu là ảnh chính; ảnh thứ hai và ba là ảnh phụ trong cụm câu chuyện.'
-                      : 'Ảnh được liên kết với khu vực nội dung này.'}{' '}
-                  Tối đa 20 ảnh.
-                </p>
-                <SelectedAssets
-                  ids={draft.assetIds}
-                  disabled={busy}
-                  onChange={(assetIds) => setDraft({ ...draft, assetIds })}
-                />
-                <AdminAssetPicker
-                  disabled={busy || draft.assetIds.length >= 20}
-                  selected={draft.assetIds}
-                  onChoose={(a) => {
-                    setDraft((d) => ({
-                      ...d,
-                      assetIds: d.assetIds.includes(a.id) ? d.assetIds : [...d.assetIds, a.id],
-                    }));
-                  }}
-                />
-              </Panel>
+              {guidance?.images && (
+                <Panel>
+                  <h2>Hình ảnh</h2>
+                  <p className="muted">
+                    {key === 'HomeHero'
+                      ? 'Mỗi ảnh là một slide banner. Dùng nút lên/xuống để đổi thứ tự; khách có thể chuyển ảnh. Chuẩn bị ảnh ngang, chừa vùng trống bên trái cho chữ.'
+                      : key === 'Story'
+                        ? 'Ảnh đầu là ảnh chính; ảnh thứ hai và ba là ảnh phụ trong cụm câu chuyện.'
+                        : 'Ảnh được liên kết với khu vực nội dung này.'}{' '}
+                    Tối đa 20 ảnh.
+                  </p>
+                  <SelectedAssets
+                    ids={draft.assetIds}
+                    disabled={busy}
+                    onChange={(assetIds) => setDraft({ ...draft, assetIds })}
+                  />
+                  <AdminAssetPicker
+                    disabled={busy || draft.assetIds.length >= 20}
+                    selected={draft.assetIds}
+                    onChoose={(a) => {
+                      setDraft((d) => ({
+                        ...d,
+                        assetIds: d.assetIds.includes(a.id) ? d.assetIds : [...d.assetIds, a.id],
+                      }));
+                    }}
+                  />
+                </Panel>
+              )}
               <div className="admin-savebar">
                 <span>
                   {dirty
@@ -264,14 +284,15 @@ export function ContentWorkspace() {
                 Xem trước nội dung nhập
               </h2>
               <p className="admin-help">
-                Đây là bản xem nội dung, bố cục trên website có thể khác.
+                Đây chỉ là bản xem văn bản và ảnh, không phải bản dựng website.{' '}
+                {guidance?.placement}
               </p>
-              {draft.assetIds[0] && (
+              {guidance?.images && !!draft.assetIds[0] && (
                 <img src={`/api/media/${draft.assetIds[0]}`} alt="Ảnh xem trước nội dung" />
               )}
               <h3>{draft.title || 'Tiêu đề sẽ hiển thị ở đây'}</h3>
               <p className="plain-text">{draft.body || 'Nội dung đang để trống.'}</p>
-              {draft.linkLabel && (
+              {guidance?.links && draft.linkLabel && (
                 <span className="preview-link">
                   {draft.linkLabel} → {draft.linkUrl || 'Chưa có đường dẫn'}
                 </span>
@@ -283,8 +304,7 @@ export function ContentWorkspace() {
       {publish && (
         <Modal title="Công bố nội dung lên website?" close={() => !busy && setPublish(false)}>
           <p>
-            Bản đã lưu của mục <b>{sectionNames[key]}</b> sẽ được hiển thị công khai, bao gồm ảnh đã
-            chọn.
+            Công bố bản đã lưu của mục <b>{sectionNames[key]}</b>. {guidance?.placement}
           </p>
           {error && <ErrorBox text={error} />}
           <div className="button-row">

@@ -1,9 +1,10 @@
-import { ProductImage } from './ProductImage';
+import { FramedProductImage } from './FramedProductImage';
+import { frameForAsset } from '../lib/image-framing';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShop } from '../lib/state';
-import { money } from '../lib/api';
-import type { Product, Section } from '../lib/types';
+import { money, safeLink } from '../lib/api';
+import type { Product, Section, HomeImageFrame } from '../lib/types';
 import { QuickBuy } from './QuickBuy';
 import { Modal } from './ui';
 import './home-products.css';
@@ -33,8 +34,12 @@ export function HomeProducts({
     <section className="home-products" id="san-pham-noi-bat" tabIndex={-1}>
       <div className="container">
         <header>
-          <span className="eyebrow featured-products-label">Sản phẩm nổi bật của 4fitchicken</span>
-          <h2>{config?.title || 'Bữa ngon, gần bạn hơn.'}</h2>
+          <h2>Sản phẩm nổi bật</h2>
+          {config?.title?.trim() !== 'Sản phẩm nổi bật' && (
+            <p className="featured-products-subtitle">
+              {config?.title || 'Bữa ngon, gần bạn hơn.'}
+            </p>
+          )}
           {config?.body && <p>{config.body}</p>}
         </header>
         {products.map((p) => (
@@ -42,18 +47,19 @@ export function HomeProducts({
             key={`${p.id}:${config?.productMainImages?.[String(p.id)] ?? 0}`}
             product={p}
             mainAssetId={config?.productMainImages?.[String(p.id)]}
+            imageFrame={config?.productImageFrames?.[String(p.id)]}
             preview={preview}
             choose={() => setBuy(p.id)}
             zoom={setZoom}
           />
         ))}
-        <Link
+        <a
           className="text-link"
-          to="/san-pham"
+          href={safeLink(config?.linkUrl)}
           onClick={preview ? (e) => e.preventDefault() : undefined}
         >
           {config?.linkLabel || 'Tất cả sản phẩm'} →
-        </Link>
+        </a>
       </div>
       {buy !== undefined && !preview && (
         <QuickBuy productId={buy} close={() => setBuy(undefined)} />
@@ -69,12 +75,14 @@ export function HomeProducts({
 function ProductShowcase({
   product: p,
   mainAssetId,
+  imageFrame,
   preview,
   choose,
   zoom,
 }: {
   product: Product;
   mainAssetId?: number;
+  imageFrame?: HomeImageFrame;
   preview: boolean;
   choose: () => void;
   zoom: (image: { url: string; alt: string }) => void;
@@ -92,7 +100,16 @@ function ProductShowcase({
         <div className="showcase-main">
           {current ? (
             <>
-              <ProductImage key={current.url} src={current.url} alt={current.altText || p.name} />
+              <FramedProductImage
+                key={current.url}
+                src={current.url}
+                alt={current.altText || p.name}
+                frame={
+                  current.assetId === orderedImages[0]?.assetId
+                    ? frameForAsset(imageFrame, current.assetId)
+                    : undefined
+                }
+              />
               <button
                 type="button"
                 className="showcase-zoom"
@@ -122,31 +139,41 @@ function ProductShowcase({
         )}
       </div>
       <div className="showcase-copy">
-        <span className="eyebrow">ỨC GÀ NẤU CHẬM</span>
         <h3>{p.name}</h3>
         <p className="showcase-description">{p.shortDescription}</p>
-        <p>{variants.length === 1 ? variants[0].label : `${variants.length} quy cách lựa chọn`}</p>
-        <strong className="showcase-price">
-          {price === undefined
-            ? 'Đang cập nhật giá'
-            : `${variants.length > 1 ? 'Từ ' : ''}${money(price)}`}
-        </strong>
-        {!available && <p className="showcase-soldout">Tạm hết hàng</p>}
-        <div className="button-row">
-          <button
-            className="button"
-            disabled={!available}
-            onClick={() => (preview ? setSample(true) : choose())}
-          >
-            Chọn mua →
-          </button>
-          <Link
-            className="text-link"
-            to={`/san-pham/${p.id}`}
-            onClick={preview ? (e) => e.preventDefault() : undefined}
-          >
-            Xem chi tiết
-          </Link>
+        <div className="showcase-purchase">
+          <div className="showcase-price-line">
+            <strong className="showcase-price">
+              {price === undefined
+                ? 'Đang cập nhật giá'
+                : `${variants.length > 1 ? 'Từ ' : ''}${money(price)}`}
+            </strong>
+            {variants.length === 1 && variants[0].netWeightGrams > 0 && (
+              <span className="showcase-weight">Gói {variants[0].netWeightGrams} g</span>
+            )}
+            {variants.length > 1 && (
+              <span className="showcase-weight">{variants.length} quy cách</span>
+            )}
+          </div>
+          <p className={`showcase-availability ${!available ? 'showcase-soldout' : ''}`}>
+            {available ? 'Còn hàng' : 'Tạm hết hàng'}
+          </p>
+          <div className="button-row">
+            <button
+              className="button"
+              disabled={!available}
+              onClick={() => (preview ? setSample(true) : choose())}
+            >
+              Chọn mua →
+            </button>
+            <Link
+              className="text-link"
+              to={`/san-pham/${p.id}`}
+              onClick={preview ? (e) => e.preventDefault() : undefined}
+            >
+              Xem chi tiết
+            </Link>
+          </div>
         </div>
         {preview && sample && (
           <div className="preview-product-info">
@@ -165,4 +192,3 @@ function ProductShowcase({
     </article>
   );
 }
-

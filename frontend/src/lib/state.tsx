@@ -1,3 +1,4 @@
+import type { PublicData } from './public-data';
 import {
   createContext,
   useContext,
@@ -13,14 +14,15 @@ import type { CartItem, Product, Section, Gym } from './types';
 import { planCartAdd } from './cart';
 
 const Context = createContext<ReturnType<typeof useStore> | null>(null);
-function useStore() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [gyms, setGyms] = useState<Gym[]>([]);
-  const [loading, setLoading] = useState(true);
+function useStore(initial?: PublicData) {
+  const [products, setProducts] = useState<Product[]>(initial?.products ?? []);
+  const [sections, setSections] = useState<Section[]>(initial?.sections ?? []);
+  const [gyms, setGyms] = useState<Gym[]>(initial?.gyms ?? []);
+  const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState('');
   const [cart, updateCart] = useState<CartItem[]>(() => {
     try {
+      if (initial || typeof window === 'undefined') return [];
       const v = JSON.parse(localStorage.getItem('forfit.cart.v1') ?? '[]');
       return Array.isArray(v)
         ? v
@@ -79,11 +81,30 @@ function useStore() {
     }
   }
   useEffect(() => {
-    void reload();
+    if (!initial) void reload();
+    if (initial) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('forfit.cart.v1') ?? '[]');
+        if (Array.isArray(saved))
+          setCart(
+            saved
+              .filter(
+                (x: CartItem) =>
+                  Number.isSafeInteger(x.variantId) &&
+                  Number.isInteger(x.quantity) &&
+                  x.quantity > 0 &&
+                  x.quantity <= 100,
+              )
+              .slice(0, 20),
+          );
+      } catch {
+        /* Keep empty cart. */
+      }
+    }
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem('forfit.cart.v1', JSON.stringify(cart));
+      localStorage.setItem('forfit.cart.v1', JSON.stringify(cartRef.current));
     } catch {
       /* Cart remains usable in memory if storage is unavailable. */
     }
@@ -108,6 +129,8 @@ function useStore() {
     return true;
   }
   return {
+    initialStatus: initial?.status,
+    initialPath: initial?.path,
     products,
     sections,
     gyms,
@@ -122,8 +145,14 @@ function useStore() {
     updatePublicProduct,
   };
 }
-export function StoreProvider({ children }: { children: ReactNode }) {
-  const value = useStore();
+export function StoreProvider({
+  children,
+  initial,
+}: {
+  children: ReactNode;
+  initial?: PublicData;
+}) {
+  const value = useStore(initial);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useShop() {

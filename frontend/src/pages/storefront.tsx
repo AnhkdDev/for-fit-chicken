@@ -26,6 +26,7 @@ import { BrandLogo } from '../components/BrandLogo';
 import { HomeProducts } from '../components/HomeProducts';
 import { HomeTransition } from '../components/HomeTransition';
 import { StoryShowcase } from '../components/StoryShowcase';
+import { keepLastWordsTogether } from '../lib/display-text';
 
 const nav = [
   ['/', 'Trang chủ'],
@@ -195,7 +196,9 @@ export function Home({
                 <span className="line" /> SLOW COOKED. WELL LIVED.
               </span>
               <h1>
-                {hero?.title ?? (
+                {hero?.title ? (
+                  keepLastWordsTogether(hero.title)
+                ) : (
                   <>
                     Chậm một chút.
                     <br />
@@ -213,7 +216,9 @@ export function Home({
                   <Arrow />
                 </a>
                 <Link to="/cau-chuyen" className="text-link">
-                  Câu chuyện của chúng mình <ArrowUpRight size={17} />
+                  <span className="hero-story-label-full">Câu chuyện của chúng mình</span>
+                  <span className="hero-story-label-short">Câu chuyện</span>
+                  <ArrowUpRight size={17} />
                 </Link>
               </div>
             </div>
@@ -436,17 +441,21 @@ export function Products() {
 }
 export function ProductDetail() {
   const { id } = useParams();
-  const { add } = useShop();
-  const [p, setP] = useState<Product>();
+  const { add, products, updatePublicProduct } = useShop();
+  const seed = products.find((p) => String(p.id) === id);
+  const [p, setP] = useState<Product | undefined>(seed);
   const [error, setError] = useState('');
-  const [selected, setSelected] = useState<number>();
+  const [selected, setSelected] = useState<number | undefined>(
+    seed?.variants.find((v) => v.isActive)?.id,
+  );
   const [image, setImage] = useState(0);
   useEffect(() => {
-    setP(undefined);
+    if (String(p?.id) !== id) setP(undefined);
     setError('');
     api<Product>(`/products/${id}`)
       .then((p) => {
         setP(p);
+        updatePublicProduct(p);
         setSelected(p.variants.find((v) => v.isActive)?.id);
       })
       .catch((e) => setError(e.message));
@@ -464,14 +473,20 @@ export function ProductDetail() {
   const v = p.variants.find((v) => v.id === selected);
   return (
     <div className="container page">
-      <div className="breadcrumb">
-        <Link to="/san-pham">Sản phẩm</Link> / {p.name}
-      </div>
+      <nav className="breadcrumb" aria-label="Điều hướng phân cấp">
+        <Link to="/">Trang chủ</Link> / <Link to="/san-pham">Sản phẩm</Link> /{' '}
+        <span aria-current="page">{p.name}</span>
+      </nav>
       <div className="detail-grid">
         <div>
           <div className="detail-image">
             {p.images[image] ? (
-              <img src={p.images[image].url} alt={p.images[image].altText ?? p.name} />
+              <img
+                src={p.images[image].url}
+                alt={p.images[image].altText ?? p.name}
+                fetchPriority="high"
+                decoding="async"
+              />
             ) : (
               <ShoppingBag size={80} strokeWidth={0.7} />
             )}
@@ -547,24 +562,30 @@ export function ProductDetail() {
 export function Story() {
   const { sections } = useShop();
   const s = sections.find((s) => s.sectionKey === 'Story')?.content;
-  const paragraphs = (s?.body ??
-    'ForFit bắt đầu từ nhóm bốn người cùng xây dựng ý tưởng ức gà nấu chậm. Chúng mình chọn bắt đầu bằng sản phẩm, lắng nghe khách hàng và đưa sản phẩm đến gần cộng đồng tập luyện qua các phòng gym.')
-    .split(/\r?\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  const paragraphs = (
+    s?.body ??
+    'ForFit bắt đầu từ nhóm bốn người cùng xây dựng ý tưởng ức gà nấu chậm. Chúng mình chọn bắt đầu bằng sản phẩm, lắng nghe khách hàng và đưa sản phẩm đến gần cộng đồng tập luyện qua các phòng gym.'
+  )
+    .split(/\r?\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
   return (
     <>
       <div className="container page story-page">
         <header className="story-page-heading">
-        <span className="eyebrow">NHỮNG NGƯỜI PHÍA SAU BỮA ĂN</span>
-        <h1>
-          {s?.title ?? (
-            <>
-              Từ một ý tưởng nhỏ,
-              <br />
-              đến những bữa ăn <em>thường ngày.</em>
-            </>
-          )}
-        </h1>
-        <p className="story-page-subtitle">Bốn người, một ý tưởng nhỏ và mong muốn mang bữa ăn tiện lợi đến gần bạn hơn.</p>
+          <span className="eyebrow">NHỮNG NGƯỜI PHÍA SAU BỮA ĂN</span>
+          <h1>
+            {s?.title ?? (
+              <>
+                Từ một ý tưởng nhỏ,
+                <br />
+                đến những bữa ăn <em>thường ngày.</em>
+              </>
+            )}
+          </h1>
+          <p className="story-page-subtitle">
+            Bốn người, một ý tưởng nhỏ và mong muốn mang bữa ăn tiện lợi đến gần bạn hơn.
+          </p>
         </header>
         <div className="story-page-grid">
           <blockquote className="story-quote">
@@ -575,32 +596,34 @@ export function Story() {
           </blockquote>
           <div className="story-page-copy">
             <h2>Bắt đầu từ bữa ăn thường ngày</h2>
-            {paragraphs.slice(0, 2)
-              .map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+            {paragraphs.slice(0, 2).map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
           </div>
         </div>
         <div className="story-page-copy story-page-continuation">
-            {paragraphs.slice(2).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
-            <p>
-              Bạn có thể tìm hiểu sản phẩm trực tuyến, đặt hàng không cần tài khoản hoặc ghé các
-              điểm bán được công bố. Nhóm sẽ trực tiếp gọi xác nhận mỗi đơn online trước khi chuẩn
-              bị.
-            </p>
-            <Link className="button" to="/san-pham">
-              Khám phá sản phẩm <Arrow />
-            </Link>
-          </div>
+          {paragraphs.slice(2).map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))}
+          <p>
+            Bạn có thể tìm hiểu sản phẩm trực tuyến, đặt hàng không cần tài khoản hoặc ghé các điểm
+            bán được công bố. Nhóm sẽ trực tiếp gọi xác nhận mỗi đơn online trước khi chuẩn bị.
+          </p>
+          <Link className="button" to="/san-pham">
+            Khám phá sản phẩm <Arrow />
+          </Link>
+        </div>
         <div className="story-page-gallery">
-        {s?.assetIds?.map((id) => (
-          <img
-            className="story-wide"
-            key={id}
-            src={`/api/media/${id}`}
-            alt="Câu chuyện thương hiệu ForFit"
-            loading="lazy"
-            decoding="async"
-          />
-        ))}
+          {s?.assetIds?.map((id) => (
+            <img
+              className="story-wide"
+              key={id}
+              src={`/api/media/${id}`}
+              alt="Câu chuyện thương hiệu ForFit"
+              loading="lazy"
+              decoding="async"
+            />
+          ))}
         </div>
       </div>
       <Faq />
@@ -1022,4 +1045,3 @@ export function NotFound() {
     </div>
   );
 }
-

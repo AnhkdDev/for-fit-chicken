@@ -36,11 +36,13 @@ export function Modal({
   children,
   close,
   className = '',
+  closeDisabled = false,
 }: {
   title: string;
   children: ReactNode;
   close: () => void;
   className?: string;
+  closeDisabled?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -61,16 +63,16 @@ export function Modal({
       className={`modal ${className}`}
       onCancel={(e) => {
         e.preventDefault();
-        close();
+        if (!closeDisabled) close();
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) close();
+        if (!closeDisabled && e.target === e.currentTarget) close();
       }}
       aria-label={title}
     >
       <div className="modal-head">
         <h2>{title}</h2>
-        <button className="icon-button" onClick={close} aria-label="Đóng">
+        <button className="icon-button" onClick={close} disabled={closeDisabled} aria-label="Đóng">
           <X />
         </button>
       </div>
@@ -84,7 +86,7 @@ export function Status({ value }: { value: string }) {
     Confirmed: 'Đã xác nhận',
     Preparing: 'Đang chuẩn bị',
     HandedOver: 'Đã bàn giao',
-    Completed: 'Hoàn tất',
+    Completed: 'Giao thành công',
     Cancelled: 'Đã hủy',
     Good: 'Hàng tốt',
     Quarantine: 'Cách ly',
