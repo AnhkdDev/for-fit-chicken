@@ -1,0 +1,65 @@
+# Offline full-v3 release. Preserve existing project/volumes/network/config; never use down -v.
+name: forfit-phase1
+services:
+  api:
+    image: forfit-api:full-v3-20261031
+    networks:
+      - database
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      ReverseProxy__KnownProxies__0: 127.0.0.1
+      DataProtection__KeysPath: /var/lib/forfit/keys
+      Media__RootPath: /var/lib/forfit/media-local
+    ports:
+      - "127.0.0.1:18081:8081"
+    volumes:
+      - type: bind
+        source: /etc/forfit/appsettings.Production.json
+        target: /app/appsettings.Production.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - keys:/var/lib/forfit/keys
+      - local-media:/var/lib/forfit/media-local
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  web:
+    image: forfit-web:full-v3-20261031
+    # Shared namespace avoids trusting a changing Docker gateway/subnet.
+    network_mode: service:api
+    depends_on: [api, ssr]
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  ssr:
+    image: forfit-ssr:full-v3-20261031
+    network_mode: service:api
+    depends_on: [api]
+    environment:
+      NODE_ENV: production
+      PORT: 8082
+      SSR_HOST: 127.0.0.1
+      PUBLIC_API_ORIGIN: http://127.0.0.1:8080
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+volumes:
+  keys:
+  local-media:
+networks:
+  database:
+    external: true
+    name: novastay-net
