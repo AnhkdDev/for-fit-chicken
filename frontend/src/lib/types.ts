@@ -32,6 +32,17 @@ export interface Product {
   variants: Variant[];
   images: { id: number; assetId: number; altText?: string; url: string }[];
 }
+export interface ImageFrameSettings {
+  fit: 'contain' | 'cover';
+  x: number;
+  y: number;
+  zoom: number;
+}
+export interface HomeImageFrame {
+  assetId: number;
+  desktop: ImageFrameSettings;
+  mobile?: ImageFrameSettings | null;
+}
 export interface Section {
   sectionKey: string;
   content: {
@@ -40,6 +51,7 @@ export interface Section {
     assetIds: number[];
     productIds?: number[];
     productMainImages?: Record<string, number>;
+    productImageFrames?: Record<string, HomeImageFrame>;
     enabled?: boolean;
     linkLabel?: string;
     linkUrl?: string;
