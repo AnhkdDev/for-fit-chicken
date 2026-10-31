@@ -12,10 +12,27 @@ public sealed class ContentReportService(ICommerceStore store, IUnitOfWork unit,
     {
         var ids = input.ProductIds ?? [];
         Check(ids.Length <= 50 && ids.All(x => x > 0) && ids.Distinct().Count() == ids.Length, "INVALID_PRODUCTS", "Tối đa 50 sản phẩm, ID hợp lệ và không trùng.", 400);
+        Check(input.ProductImageFrames is null || input.ProductImageFrames.Count <= 50, "INVALID_IMAGE_FRAME", "Tối đa 50 cấu hình căn ảnh.", 400);
+        foreach (var choice in input.ProductImageFrames ?? [])
+        {
+            var frame = choice.Value;
+            Check(ids.Contains(choice.Key) && frame is not null && frame.AssetId > 0, "INVALID_IMAGE_FRAME", "Cấu hình căn ảnh phải thuộc sản phẩm được chọn.", 400);
+            Check(await Store.AnyAsync(Store.Query<ProductImage>().Where(x => x.ProductId == choice.Key && x.AssetId == frame!.AssetId), token), "INVALID_PRODUCT_IMAGE", "Ảnh căn khung phải thuộc sản phẩm.", 400);
+            Check(input.ProductMainImages is null || !input.ProductMainImages.TryGetValue(choice.Key, out var main) || main == frame!.AssetId,
+                "INVALID_IMAGE_FRAME", "Cấu hình căn ảnh phải khớp ảnh chính đã chọn.", 400);
+            CheckFrame(frame!.Desktop);
+            if (frame.Mobile is not null) CheckFrame(frame.Mobile);
+        }
         foreach(var choice in input.ProductMainImages ?? new Dictionary<long,long>()) {
             Check(ids.Contains(choice.Key) && await Store.AnyAsync(Store.Query<ProductImage>().Where(x => x.ProductId == choice.Key && x.AssetId == choice.Value), token), "INVALID_PRODUCT_IMAGE", "Ảnh chính phải thuộc sản phẩm được chọn.", 400);
         }
         foreach(var id in ids) { var product = await Need<Product>(id, token); Check(product.IsActive && product.IsPublished, "PRODUCT_UNAVAILABLE", "Chỉ chọn sản phẩm hoạt động và đã công bố.", 400); }
+    }
+    private static void CheckFrame(ImageFrameSettings? frame)
+    {
+        Check(frame is not null && frame.Fit is "contain" or "cover" && frame.X >= 0 && frame.X <= 100 && frame.Y >= 0 && frame.Y <= 100
+            && frame.Zoom >= 1 && frame.Zoom <= 3 && (frame.Fit != "contain" || frame.Zoom == 1),
+            "INVALID_IMAGE_FRAME", "Căn ảnh cần kiểu vừa/phủ khung, vị trí 0–100 và mức phóng 1–3; vừa khung không phóng to.", 400);
     }
     public async Task<SectionView[]> ContentAsync(bool publicOnly, CancellationToken token) =>
         (await Store.ListAsync(Store.Query<SiteContent>().Where(x => !publicOnly || x.PublishedJson != null).OrderBy(x => x.SectionKey), token))
